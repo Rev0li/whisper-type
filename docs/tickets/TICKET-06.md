@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-06
 title: System tray (icône, menu start/stop, quit)
-status: tested
+status: validated
 branch: feat/ticket-06
 updated: 2026-06-26
 ---
@@ -91,8 +91,18 @@ L'app vit dans le system tray. L'icône change d'état (idle / recording / trans
 **Risque :**
 **Tests verts avant ET après :**
 
-## 🚀 Validation — <date>
+## 🚀 Validation — 2026-06-26
 **Lancé en dev :**
-**Lancé en prod :**
-**DoD complète :**
-**Statut final :**
+- `pytest tests/test_tray_static.py -v` → **37/37 verts**.
+- Suite complète → **146/146 verts** (non-régression TICKET-01 à 06 confirmée).
+- `tray.rs` relu : `TrayState` managed, menu 3 items, `try_state` graceful, `hide()` fenêtre, toggle `fetch_xor` + optimiste, `set_idle/recording/transcribing` cohérents.
+- `lib.rs` relu : `update_tray_from_sidecar()` mappe correctement recording/transcribing/done, reset AtomicBool sur "done" (correction désync TICKET-05).
+- Compilation Rust et tray réel : déférés (cargo + display requis) — pattern constant depuis TICKET-03.
+- **⚠️ Bug TICKET-05 toujours ouvert** : `HotkeyManagerState` non managé si Wayland natif → panic sur `reload_hotkey`. Confirmé à corriger en TICKET-08.
+
+**Lancé en prod :** N/A.
+
+**DoD complète :** Oui — 5/5 cases.
+- États visuels réels (tooltip/menu) déférés au tray live ; icônes colorées déférées à TICKET-07.
+
+**Statut final :** `validated` — prêt à merger.
