@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>whisper-type</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>whisper-type</h1>
+      <p class="subtitle">Speech to text — local &amp; privé</p>
+    </header>
+
+    <main>
+      <section class="setting">
+        <label for="model">Modèle Whisper</label>
+        <select id="model">
+          <option value="tiny">tiny — ultra rapide</option>
+          <option value="base">base — bon compromis</option>
+          <option value="small" selected>small — meilleur FR (défaut)</option>
+          <option value="medium">medium — plus précis</option>
+        </select>
+      </section>
+
+      <section class="setting">
+        <label for="language">Langue</label>
+        <select id="language">
+          <option value="fr" selected>Français</option>
+          <option value="en">English</option>
+          <option value="auto">Auto-détection</option>
+        </select>
+      </section>
+
+      <section class="setting">
+        <label for="hotkey">Raccourci clavier</label>
+        <input id="hotkey" type="text" readonly placeholder="Cliquez pour capturer…" />
+      </section>
+    </main>
+
+    <footer>
+      <button id="save">Enregistrer</button>
+      <span id="status"></span>
+    </footer>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
