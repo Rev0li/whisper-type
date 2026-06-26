@@ -9,7 +9,5 @@ if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
     exit 0
 fi
 
-MODEL="${1:-small}"
-
-nohup "$DIR/.venv/bin/python3" "$DIR/whisper_type.py" "$MODEL" > "$DIR/whisper-type.log" 2>&1 &
+nohup "$DIR/.venv/bin/python3" "$DIR/whisper_type.py" > "$DIR/whisper-type.log" 2>&1 &
 echo "Daemon démarré (PID $!)"

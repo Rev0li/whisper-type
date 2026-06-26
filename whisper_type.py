@@ -1,8 +1,8 @@
 #!/home/rev0li/dev/whisper-type/.venv/bin/python3
 """
 whisper-type daemon — enregistre le micro, transcrit avec Whisper, tape le texte dans l'input actif.
-Usage: python3 whisper_type.py [model_size]
-  model_size: tiny, base, small (default: small — bon pour le français)
+
+Config : ~/.config/whisper-type/config.toml (créé automatiquement au premier lancement)
 
 Signals:
   SIGUSR1 → toggle start/stop enregistrement
@@ -16,15 +16,18 @@ import threading
 import subprocess
 import tempfile
 import wave
-import time
 import logging
 from pathlib import Path
+
+import config as cfg
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
 PID_FILE = Path("/tmp/whisper-type.pid")
-MODEL_SIZE = sys.argv[1] if len(sys.argv) > 1 else "small"
+_config = cfg.load()
+MODEL_SIZE = _config["model"]
+LANGUAGE = _config["language"]
 
 # État global
 _recording = False
@@ -112,9 +115,10 @@ def stop_and_transcribe():
         wf.writeframes(audio.tobytes())
 
     try:
+        lang = None if LANGUAGE == "auto" else LANGUAGE
         segments, info = _model.transcribe(
             tmp_path,
-            language="fr",
+            language=lang,
             beam_size=5,
             vad_filter=True,
         )
@@ -162,7 +166,7 @@ def toggle_handler(signum, frame):
 
 
 def cleanup(signum=None, frame=None):
-    global _recording, _stream
+    global _recording
     _recording = False
     if _stream:
         try:
