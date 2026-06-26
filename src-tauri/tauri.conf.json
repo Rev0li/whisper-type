@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "identifier": "dev.rev0li.whisper-type",
   "build": {
-    "frontendDist": "../src"
+    "frontendDist": "../src",
+    "withGlobalTauri": true
   },
   "app": {
     "windows": [
@@ -16,6 +17,19 @@
         "resizable": false,
         "fullscreen": false,
         "visible": false
+      },
+      {
+        "label": "overlay",
+        "title": "",
+        "url": "overlay.html",
+        "width": 200,
+        "height": 54,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "visible": false,
+        "resizable": false,
+        "skipTaskbar": true,
+        "transparent": true
       }
     ],
     "security": {
