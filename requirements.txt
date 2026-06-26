@@ -1,3 +1,5 @@
 faster-whisper
 sounddevice
 numpy
+keyboard
+pyperclip
