@@ -63,6 +63,8 @@ Remplacer les valeurs codées en dur dans `whisper_type.py` par un fichier `~/.c
 **Bugs trouvés :**
 - `whisper_type.py:169` — `global _stream` déclaré inutilement dans `cleanup()` : `_stream` est seulement lu, jamais réassigné dans ce scope. Pyflakes le signale. Non bloquant (comportement correct), mais à nettoyer.
 
+**Audit refactor : 2/10** — `global _stream` superflu à retirer (1 ligne). Code `config.py` propre, logique simple, aucune dette. Ne pas bloquer la validation pour ça.
+
 ## ♻️ Refactor — <date>
 **Changé :**
 **Pourquoi :**
