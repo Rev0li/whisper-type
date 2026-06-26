@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-01
 title: Config TOML (hotkey, modèle, langue)
-status: coded
+status: tested
 branch: feat/ticket-01
 updated: 2026-06-26
 ---
@@ -16,7 +16,7 @@ Remplacer les valeurs codées en dur dans `whisper_type.py` par un fichier `~/.c
 - [x] Champs supportés : `hotkey`, `model` (tiny/base/small/medium), `language` (fr/en/auto)
 - [x] `start.sh` ne prend plus d'argument CLI — tout vient du config
 - [x] Valeurs par défaut documentées dans le fichier généré (commentaires TOML)
-- [ ] Lint + type-check OK
+- [x] Lint + type-check OK
 - [ ] Testé en dev
 
 ---
@@ -43,11 +43,25 @@ Remplacer les valeurs codées en dur dans `whisper_type.py` par un fichier `~/.c
 - Cas à tester : config absent (premier lancement), config partiel (une clé manquante), valeur `language = "auto"`.
 - Le hotkey dans config.toml est stocké mais pas encore lu par le daemon (sera utilisé par Tauri — TICKET-05). Ne pas tester ça ici.
 
-## 🧪 Test — <date>
+## 🧪 Test — 2026-06-26
 **Couvert :**
+- Config absent → création du fichier + répertoire parent + valeurs défaut (4 tests)
+- Config partiel (clé manquante) → merge tolérant via `{**DEFAULTS, **data}` (3 tests)
+- `language = "auto"` → valeur préservée dans le dict retourné (1 test)
+- Logique `None if LANGUAGE == "auto"` de `whisper_type.py` reproduite en test (2 tests)
+- Lint (pyflakes) + type-check (mypy) sur `config.py`
+- Fichier de tests : `tests/test_config.py` — 10/10 verts
+
 **NON couvert (assumé) :**
+- Test du daemon en conditions réelles (micro, Whisper, wtype) : hors scope TICKET-01, nécessite env Hyprland.
+- Valeurs invalides dans le TOML (ex: `model = "xlarge"`) : aucune validation dans `config.py`, assumé géré par Whisper au chargement (TICKET futur si besoin).
+- Hotkey : non lu par le daemon, confirmé dans la description (TICKET-05).
+
 **Sécurité vérifiée :**
+- Le fichier config est lu depuis `~/.config/whisper-type/` (sous contrôle de l'utilisateur local uniquement). Pas de secrets, pas d'exécution de code. Aucun vecteur d'injection identifié.
+
 **Bugs trouvés :**
+- `whisper_type.py:169` — `global _stream` déclaré inutilement dans `cleanup()` : `_stream` est seulement lu, jamais réassigné dans ce scope. Pyflakes le signale. Non bloquant (comportement correct), mais à nettoyer.
 
 ## ♻️ Refactor — <date>
 **Changé :**
