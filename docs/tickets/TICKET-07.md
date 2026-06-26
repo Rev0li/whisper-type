@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-07
 title: Indicateur visuel d'enregistrement (animation)
-status: coded
+status: tested
 branch: feat/ticket-07
 updated: 2026-06-27
 ---
@@ -56,11 +56,33 @@ Afficher un indicateur visuel discret quand l'enregistrement est actif — idéa
 - **Position HiDPI** : tester sur écran avec `devicePixelRatio > 1`. Si décalé, adapter le calcul dans `positionBottomRight()`.
 - **Compilation** : aucun Rust modifié → pas de `cargo build` requis pour TICKET-07. Tester directement avec `cargo tauri dev`.
 
-## 🧪 Test — <date>
+## 🧪 Test — 2026-06-27
 **Couvert :**
+- Structure : `overlay.html` + `overlay.js` présents, `withGlobalTauri: true` dans conf (3 tests)
+- Fenêtre overlay `tauri.conf.json` : 11 propriétés (200×54, decorations:false, alwaysOnTop, visible:false, resizable:false, skipTaskbar, transparent, url, fenêtre main inchangée)
+- `overlay.html` : 13 vérifications (dot/label/pill, class initiale `recording`, états CSS `.recording`/`.transcribing`, keyframes `pulse`/`spin`, couleurs #ff4444/#ffaa00, drag, transparent background, border-radius pill, script overlay.js)
+- `overlay.js` dispatch `sidecar-msg` : 9 tests (parité recording/transcribing/done avec TICKET-06 tray, status inconnus ignorés, JSON.parse, try-catch, switch sur msg.status)
+- `overlay.js` fonctions : 7 tests (className par état, hide+reset visuel vers 'recording', positionBottomRight dans showRecording, show() dans showRecording, showTranscribing ne repositionne pas)
+- Math HiDPI `positionBottomRight()` : 6 tests (1080p scale 1, 1080p scale 2, 4K, marges 208/90, devicePixelRatio)
+- Suite complète : 196/196 verts — zéro régression TICKET-01 à 07
+- Fichier de tests : `tests/test_overlay.py` — 50/50 verts
+
 **NON couvert (assumé) :**
+- **Rendu visuel réel** : animations CSS (pulse, spin), transparence du pill, positionnement bottom-right — nécessite display + browser Tauri.
+- **`window.__TAURI__.dpi.PhysicalPosition`** : path exact à vérifier au runtime (Tauri v2.11.3 pourrait l'exposer ailleurs). Fallback documenté dans le ticket.
+- **`alwaysOnTop` sur Wayland** : non garanti sans `windowrule = pin` dans hyprland.conf.
+- **HiDPI réel** : calcul validé mathématiquement, comportement écran à vérifier sur Retina/4K.
+- **showTranscribing sans showRecording préalable** : fenêtre resterait cachée — comportement acceptable (le protocole sidecar garantit l'ordre), non testé.
+
 **Sécurité vérifiée :**
+- `overlay.js` : `JSON.parse(event.payload)` dans try-catch, statuts inconnus ignorés silencieusement. Pas d'eval, pas d'injection DOM depuis les données sidecar.
+- `event.payload` contient uniquement des statuts (`"recording"/"transcribing"/"done"`) produits par le sidecar Python local — pas de données utilisateur externes.
+- CSP toujours `null` (hérité de TICKET-03). Acceptable en v0.1 local, à durcir si accès réseau futur.
+
 **Bugs trouvés :**
+- Aucun bug fonctionnel.
+- Observation : le `body` HTML a la classe initiale `recording` (ligne 77), ce qui activerait l'animation au chargement de la page. En pratique, la fenêtre est `visible: false` donc invisible — mais si quelque chose ouvre la fenêtre hors-protocole, elle serait en état recording. Non bloquant.
+- Score refactor : **1/10** — code frontend propre, minimal, zéro dette. Passer directement à Validation.
 
 ## ♻️ Refactor — <date>
 **Changé :**
