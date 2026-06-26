@@ -19,6 +19,17 @@
         "visible": false
       },
       {
+        "label": "download",
+        "title": "whisper-type — Téléchargement",
+        "url": "download.html",
+        "width": 460,
+        "height": 280,
+        "resizable": false,
+        "visible": false,
+        "center": true,
+        "alwaysOnTop": true
+      },
+      {
         "label": "overlay",
         "title": "",
         "url": "overlay.html",

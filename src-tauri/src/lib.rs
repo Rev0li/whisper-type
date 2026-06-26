@@ -39,6 +39,14 @@ fn stop_recording(
     sidecar.0.lock().unwrap().as_mut().ok_or("sidecar not running")?.send_cmd("stop")
 }
 
+/// Relance le téléchargement du modèle (bouton "Réessayer" dans l'UI download).
+#[tauri::command]
+fn retry_download(state: tauri::State<SidecarState>) -> Result<(), String> {
+    state.0.lock().unwrap().as_mut()
+        .ok_or("sidecar not running")?
+        .send_cmd("download_model")
+}
+
 /// Recharge le hotkey à chaud (TICKET-05). Appelé par save_settings si hotkey change.
 #[tauri::command]
 fn reload_hotkey(
@@ -177,6 +185,7 @@ pub fn run() {
             reload_hotkey,
             get_settings,
             save_settings,
+            retry_download,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -193,9 +202,38 @@ fn spawn_stdout_reader(handle: tauri::AppHandle, sc: &mut sidecar::Sidecar) {
                     log::info!("sidecar → {line}");
                     let _ = handle.emit("sidecar-msg", line.clone());
                     update_tray_from_sidecar(&handle, &line);
+                    handle_download_events(&handle, &line);
                 }
             }
         });
+    }
+}
+
+/// Gère les events de téléchargement : ouvre/ferme la fenêtre download, lance le DL auto.
+fn handle_download_events(app: &tauri::AppHandle, line: &str) {
+    if let Ok(msg) = serde_json::from_str::<serde_json::Value>(line) {
+        match msg.get("status").and_then(|v| v.as_str()) {
+            Some("model_missing") => {
+                if let Some(win) = app.get_webview_window("download") {
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                }
+                // Lancer le téléchargement automatiquement dès détection
+                if let Some(state) = app.try_state::<SidecarState>() {
+                    if let Ok(mut guard) = state.0.lock() {
+                        if let Some(sc) = guard.as_mut() {
+                            let _ = sc.send_cmd("download_model");
+                        }
+                    }
+                }
+            }
+            Some("model_ready") | Some("model_cached") => {
+                if let Some(win) = app.get_webview_window("download") {
+                    let _ = win.hide();
+                }
+            }
+            _ => {}
+        }
     }
 }
 
