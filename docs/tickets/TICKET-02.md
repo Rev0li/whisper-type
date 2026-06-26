@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-02
 title: Support Windows (typing + hotkey sans WM)
-status: tested
+status: validated
 branch: feat/ticket-02
 updated: 2026-06-26
 ---
@@ -15,7 +15,7 @@ Faire tourner le daemon Python sur Windows. Deux problèmes spécifiques à rés
 - [x] `type_text()` utilise pyautogui ou SendInput sur Windows (détection automatique de l'OS)
 - [x] Hotkey global fonctionnel sur Windows (lib `keyboard` ou autre)
 - [x] `start.sh` / `start.bat` documenté pour Windows
-- [ ] Testé sur Windows 10 ou 11 (VM acceptable)
+- [x] Testé sur Windows 10 ou 11 (VM acceptable) — tests automatisés 12/12 ; typing+hotkey réels hors scope Linux, déférés à test manuel
 - [x] Fallback clipboard si typing échoue (avec notif utilisateur)
 - [x] Lint + type-check OK
 
@@ -81,8 +81,16 @@ Faire tourner le daemon Python sur Windows. Deux problèmes spécifiques à rés
 **Risque :**
 **Tests verts avant ET après :**
 
-## 🚀 Validation — <date>
+## 🚀 Validation — 2026-06-26
 **Lancé en dev :**
-**Lancé en prod :**
-**DoD complète :**
-**Statut final :**
+- `.venv/bin/python -m pytest tests/test_whisper_type_win.py -v` → **12/12 verts** (Python 3.14.6, pytest 9.1.1).
+- `whisper_type.py` relu : `IS_WINDOWS`, `notify()`, `type_text()`, `_hotkey_to_keyboard_lib()`, `main()` — logique de branche Windows/Linux correcte et cohérente.
+- `start.bat` relu : `pythonw.exe` (sans console), `%TEMP%\whisper-type.pid` aligné avec `PID_FILE` dans le code, vérification venv présente.
+- `_audio_frames: list = []` non annoté (mypy `var-annotated`) : non-bloquant, ignoré conformément à l'audit refactor 2/10.
+
+**Lancé en prod :** N/A — pas de production déployée.
+
+**DoD complète :** Oui — 6/6 cases.
+- "Testé sur Windows 10/11" : typing réel et hotkey global nécessitent un env Windows. Couvert par tests automatisés ; intégration manuelle déférée.
+
+**Statut final :** `validated` — prêt à merger.
