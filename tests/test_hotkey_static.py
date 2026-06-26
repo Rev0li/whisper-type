@@ -207,3 +207,18 @@ class TestLibRsStructures:
     def test_fetch_xor_in_hotkey_rs(self):
         # Toggle AtomicBool via fetch_xor
         assert "fetch_xor" in HOTKEY_RS.read_text()
+
+    def test_hotkey_manager_state_wraps_option(self):
+        # HotkeyManagerState doit wrapper Option<HotkeyManager> pour le cas Wayland natif
+        src = self._src()
+        assert "Option<hotkey::HotkeyManager>" in src
+
+    def test_manage_none_on_wayland_failure(self):
+        # Sur échec GlobalHotKeyManager::new(), on manage quand même HotkeyManagerState(None)
+        src = self._src()
+        assert "HotkeyManagerState(Mutex::new(None))" in src
+
+    def test_reload_hotkey_handles_none_gracefully(self):
+        # reload_hotkey ne panique pas si hotkey désactivé — retourne Err propre
+        src = self._src()
+        assert "Wayland natif" in src or "Hotkey non disponible" in src

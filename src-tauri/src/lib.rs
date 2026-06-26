@@ -15,7 +15,8 @@ pub struct SidecarState(pub Mutex<Option<sidecar::Sidecar>>);
 pub struct RecordingState(pub Arc<AtomicBool>);
 
 /// Stocke le HotkeyManager pour le rechargement à chaud (TICKET-08).
-pub struct HotkeyManagerState(pub Mutex<hotkey::HotkeyManager>);
+/// None si GlobalHotKeyManager::new() a échoué (Wayland natif sans XWayland).
+pub struct HotkeyManagerState(pub Mutex<Option<hotkey::HotkeyManager>>);
 
 #[tauri::command]
 fn start_recording(
@@ -57,7 +58,10 @@ fn reload_hotkey(
     hotkey_str: String,
     hk_state: tauri::State<HotkeyManagerState>,
 ) -> Result<(), String> {
-    hk_state.0.lock().unwrap().register(&hotkey_str)
+    match hk_state.0.lock().unwrap().as_mut() {
+        Some(mgr) => mgr.register(&hotkey_str),
+        None => Err("Hotkey non disponible (Wayland natif sans XWayland)".into()),
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -111,11 +115,12 @@ pub fn run() {
                     } else {
                         log::info!("Hotkey '{hotkey_str}' enregistré");
                     }
-                    app.manage(HotkeyManagerState(Mutex::new(mgr)));
+                    app.manage(HotkeyManagerState(Mutex::new(Some(mgr))));
                     hotkey::spawn_listener(app.handle().clone(), Arc::clone(&recording));
                 }
                 Err(e) => {
                     log::warn!("GlobalHotKeyManager::new() échoué ({e}) — hotkey désactivé");
+                    app.manage(HotkeyManagerState(Mutex::new(None)));
                 }
             }
 
