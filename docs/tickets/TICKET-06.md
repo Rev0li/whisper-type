@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-06
 title: System tray (icône, menu start/stop, quit)
-status: coded
+status: tested
 branch: feat/ticket-06
 updated: 2026-06-26
 ---
@@ -59,11 +59,31 @@ L'app vit dans le system tray. L'icône change d'état (idle / recording / trans
 - **`on_window_event` + `win.clone()`** : pattern standard Tauri v2, devrait compiler. Si erreur de lifetime, capturer `app_handle` et faire `app_handle.get_webview_window("main")` dans le handler.
 - **DoD case "3 états visuels"** : icône identique pour les 3 états en v0.1 (TICKET-07). Tooltip + menu reflètent l'état.
 
-## 🧪 Test — <date>
+## 🧪 Test — 2026-06-26
 **Couvert :**
+- Structure : `tray.rs` présent, feature `tray-icon` dans `Cargo.toml`, icône `32x32.png` référencée (3 tests)
+- `tray.rs` statique : `try_state` (graceful degradation), `prevent_close`+`hide()` (fermeture fenêtre), 3 items menu, `fetch_xor`, `show_menu_on_left_click(false)`, textes 3 états (11 tests)
+- `update_tray_from_sidecar()` parité Python/Rust : 10 cas (recording/transcribing/done, JSON invalide, status absent/null/inconnu, text sans status, done+text) — logique pont sidecar→tray validée
+- Logique toggle optimiste : 3 cas (not recording→start+set_recording, was recording→stop+set_transcribing, séquence complète)
+- `lib.rs` intégration tray : `mod tray`, `update_tray_from_sidecar`, `tray::setup` graceful, `store(false)` sur "done", set_recording/set_transcribing dans les commandes Tauri (7 tests)
+- `hotkey.rs` : tray update avant `send_cmd` (ordre garanti), set_recording+set_transcribing présents (3 tests)
+- Suite complète : 146/146 verts — zéro régression TICKET-01 à 06
+- Fichier de tests : `tests/test_tray_static.py` — 37/37 verts
+
 **NON couvert (assumé) :**
+- **Compilation Rust** : cargo absent — `TrayIcon<Wry>+Mutex Send+Sync`, `Image::from_bytes()` API Tauri v2.11.3 à vérifier impérativement à la première `cargo build`.
+- **Tray réel** : icône visible dans le panel système, menu clic droit fonctionnel, hide/show fenêtre — nécessite display + lib système (ayatana-appindicator sur Fedora).
+- États visuels réels (tooltip + menu texte) : non vérifiables sans tray vivant.
+
 **Sécurité vérifiée :**
+- `update_tray_from_sidecar()` : parse JSON uniquement, ne fait aucun exec. Les statuts inconnus sont ignorés silencieusement.
+- `app.exit(0)` sur Quit : sortie propre, pas d'action destructive.
+- `prevent_close` + `hide()` : l'utilisateur ne peut pas fermer accidentellement le sidecar via la fenêtre settings.
+
 **Bugs trouvés :**
+- Bug TICKET-05 (`HotkeyManagerState` non géré si Wayland natif) toujours présent dans `lib.rs` — non corrigé ici, confirmé dans le handoff TICKET-05. À corriger avant TICKET-08.
+- Aucun nouveau bug détecté.
+- Score refactor : **2/10** — code propre, dégradation gracieuse cohérente. Passer directement à Validation.
 
 ## ♻️ Refactor — <date>
 **Changé :**
