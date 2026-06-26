@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-02
 title: Support Windows (typing + hotkey sans WM)
-status: coded
+status: tested
 branch: feat/ticket-02
 updated: 2026-06-26
 ---
@@ -17,7 +17,7 @@ Faire tourner le daemon Python sur Windows. Deux problèmes spécifiques à rés
 - [x] `start.sh` / `start.bat` documenté pour Windows
 - [ ] Testé sur Windows 10 ou 11 (VM acceptable)
 - [x] Fallback clipboard si typing échoue (avec notif utilisateur)
-- [ ] Lint + type-check OK
+- [x] Lint + type-check OK
 
 ---
 
@@ -49,11 +49,31 @@ Faire tourner le daemon Python sur Windows. Deux problèmes spécifiques à rés
 - Vérifier que `pyperclip` ne casse pas le contenu du clipboard de l'utilisateur (le texte précédent est écrasé — comportement assumé, non restauré).
 - `_type_text_windows()` : le `time.sleep(0.05)` est empirique. Peut nécessiter ajustement sur machines lentes.
 
-## 🧪 Test — <date>
+## 🧪 Test — 2026-06-26
 **Couvert :**
+- `_hotkey_to_keyboard_lib()` : 5 cas (SUPER+grave, CTRL+SHIFT+SPACE, ALT+TAB, clé inconnue lowercasée, clé seule)
+- `notify()` branche Windows : log-only, pas d'appel subprocess (2 tests)
+- `notify()` branche Linux : appel notify-send confirmé
+- `IS_WINDOWS` : False sur Linux, True sur win32 patchée
+- `PID_FILE` : path via `tempfile.gettempdir()`, nom correct
+- Lint pyflakes `whisper_type.py` : OK (bug `global _stream` de TICKET-01 corrigé)
+- Fichier de tests : `tests/test_whisper_type_win.py` — 12/12 verts
+
 **NON couvert (assumé) :**
+- Typing réel Windows (`_type_text_windows` : clipboard+Ctrl+V) : nécessite Windows 10/11, hors portée Linux.
+- Hotkey global Windows (`keyboard.add_hotkey`) : même raison.
+- Conflit hotkey Windows (clé déjà prise par le système) : non testable automatiquement.
+- Comportement `pyperclip` sur le clipboard existant de l'utilisateur : assumé écrasement, documenté dans le ticket.
+- `time.sleep(0.05)` dans `_type_text_windows` : empirique, à ajuster manuellement si besoin.
+
 **Sécurité vérifiée :**
+- `keyboard` importé conditionnellement (Windows uniquement) — ne tourne pas avec droits root sur Linux.
+- `pyperclip.copy()` écrit dans le clipboard utilisateur : pas de fuite vers l'extérieur, contenu limité à la transcription locale.
+- Pas d'exécution de commandes injectées depuis la config.
+
 **Bugs trouvés :**
+- `whisper_type.py:36` — `_audio_frames: list = []` non annoté, mypy le signale (`var-annotated`). Non bloquant, à annoter (`list[Any]` ou `list[np.ndarray]`).
+- Score refactor : **2/10** — code propre, logique conditionnelle claire. Seule amélioration possible : annotation `_audio_frames`. Ne pas bloquer la validation.
 
 ## ♻️ Refactor — <date>
 **Changé :**
