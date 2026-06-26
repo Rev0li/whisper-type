@@ -3,7 +3,7 @@ ticket: TICKET-06
 title: System tray (icône, menu start/stop, quit)
 status: validated
 branch: feat/ticket-06
-updated: 2026-06-26
+updated: 2026-06-27
 ---
 
 # TICKET-06 — System tray (icône, menu start/stop, quit)
@@ -81,7 +81,7 @@ L'app vit dans le system tray. L'icône change d'état (idle / recording / trans
 - `prevent_close` + `hide()` : l'utilisateur ne peut pas fermer accidentellement le sidecar via la fenêtre settings.
 
 **Bugs trouvés :**
-- Bug TICKET-05 (`HotkeyManagerState` non géré si Wayland natif) toujours présent dans `lib.rs` — non corrigé ici, confirmé dans le handoff TICKET-05. À corriger avant TICKET-08.
+- ~~Bug TICKET-05 (`HotkeyManagerState` non géré si Wayland natif) toujours présent dans `lib.rs`~~ → **corrigé le 2026-06-27** (commit `395b399`, hotfix TICKET-05).
 - Aucun nouveau bug détecté.
 - Score refactor : **2/10** — code propre, dégradation gracieuse cohérente. Passer directement à Validation.
 
@@ -98,7 +98,7 @@ L'app vit dans le system tray. L'icône change d'état (idle / recording / trans
 - `tray.rs` relu : `TrayState` managed, menu 3 items, `try_state` graceful, `hide()` fenêtre, toggle `fetch_xor` + optimiste, `set_idle/recording/transcribing` cohérents.
 - `lib.rs` relu : `update_tray_from_sidecar()` mappe correctement recording/transcribing/done, reset AtomicBool sur "done" (correction désync TICKET-05).
 - Compilation Rust et tray réel : déférés (cargo + display requis) — pattern constant depuis TICKET-03.
-- **⚠️ Bug TICKET-05 toujours ouvert** : `HotkeyManagerState` non managé si Wayland natif → panic sur `reload_hotkey`. Confirmé à corriger en TICKET-08.
+- ~~**⚠️ Bug TICKET-05 toujours ouvert**~~ → **corrigé le 2026-06-27** (commit `395b399`) : `HotkeyManagerState` wraps `Option`, manage `None` sur échec Wayland, `reload_hotkey` retourne `Err` propre. Plus bloquant pour TICKET-08.
 
 **Lancé en prod :** N/A.
 

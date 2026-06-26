@@ -3,7 +3,7 @@ ticket: TICKET-05
 title: Hotkey global en Rust (global-hotkey crate)
 status: validated
 branch: feat/ticket-05
-updated: 2026-06-26
+updated: 2026-06-27
 ---
 
 # TICKET-05 — Hotkey global en Rust (global-hotkey crate)
@@ -100,3 +100,15 @@ Implémenter l'écoute du raccourci clavier global dans le backend Rust via le c
 - Toggles Linux/Windows : validation runtime déférée, couverture statique complète.
 
 **Statut final :** `validated` — prêt à merger. Bug `HotkeyManagerState` non bloquant ici, à traiter en TICKET-08.
+
+---
+
+## 🐛 Hotfix — 2026-06-27
+
+**Bug corrigé :** `HotkeyManagerState` non managé si `GlobalHotKeyManager::new()` échoue (Wayland natif sans XWayland) → panic Tauri sur appel à `reload_hotkey`.
+
+**Fix appliqué dans `lib.rs` (commit `395b399`) :**
+- `HotkeyManagerState` wraps maintenant `Mutex<Option<hotkey::HotkeyManager>>` (était `Mutex<hotkey::HotkeyManager>`).
+- Branche `Err` → `app.manage(HotkeyManagerState(Mutex::new(None)))` — state toujours présent.
+- `reload_hotkey` → `match .as_mut()` : retourne `Err("Hotkey non disponible...")` au lieu de paniquer.
+- 3 nouveaux tests dans `test_hotkey_static.py` — 149/149 verts.
