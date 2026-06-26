@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-03
 title: Init projet Tauri v2 + structure frontend
-status: coded
+status: tested
 branch: feat/ticket-03
 updated: 2026-06-26
 ---
@@ -46,11 +46,29 @@ Initialiser la structure Tauri v2 dans le repo. Choisir le framework frontend (v
 - Vérifier que `visible: false` est bien respecté (pas de fenêtre au démarrage, app dans le tray).
 - `01-tech-decisions.md` : ajouter ADR-005 "Vanilla JS retenu pour le frontend" (peut être fait par le testeur ou reporté à TICKET-08).
 
-## 🧪 Test — <date>
+## 🧪 Test — 2026-06-26
 **Couvert :**
+- Structure scaffold : 12 fichiers attendus vérifiés (src-tauri/, src/, package.json, Cargo.toml, Cargo.lock…)
+- `tauri.conf.json` : 8 valeurs critiques (identifier, productName, 420×520, resizable:false, visible:false, frontendDist, pas d'Android)
+- `.gitignore` : entrées `src-tauri/target/` et `node_modules/` confirmées
+- `package.json` : `@tauri-apps/cli ^2` + script `dev: tauri dev`
+- `Cargo.toml` : Tauri v2, tauri-build v2, edition 2021
+- Frontend HTML : présence de `#model`, `#language`, `#hotkey`, `#save`
+- `main.js` : listener `keydown`, conversion `grave`, TODO TICKET-08 documenté
+- Fichier de tests : `tests/test_tauri_scaffold.py` — 34/34 verts
+
 **NON couvert (assumé) :**
+- `cargo tauri dev` : cargo non disponible dans l'env de test Linux. **À valider manuellement** sur le poste avec display Wayland/X11 — c'est la case DoD encore ouverte.
+- Compilation Rust complète : 323 crates téléchargées selon le rôle Code, non vérifiable sans cargo.
+- `visible: false` comportement réel au lancement (fenêtre absente du WM) : nécessite display.
+
 **Sécurité vérifiée :**
+- `tauri.conf.json` : `csp: null` — pas de Content Security Policy définie. Non bloquant pour un scaffold sans IPC, mais à durcir dans TICKET-08 quand le frontend communique avec le backend.
+- Pas de permissions étendues dans `capabilities/default.json` au-delà du scaffold par défaut.
+
 **Bugs trouvés :**
+- `Cargo.toml` : `name = "app"` (générique), `authors = ["you"]` et `description = "A Tauri App"` (placeholders du scaffold). Non bloquant, cosmétique — à corriger avant le bundle final.
+- Score refactor : **1/10** — scaffold standard, rien à refactorer. Passer directement à Validation.
 
 ## ♻️ Refactor — <date>
 **Changé :**
