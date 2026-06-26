@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-05
 title: Hotkey global en Rust (global-hotkey crate)
-status: coded
+status: tested
 branch: feat/ticket-05
 updated: 2026-06-26
 ---
@@ -54,11 +54,30 @@ Implémenter l'écoute du raccourci clavier global dans le backend Rust via le c
 - **Test compilation** : non testable sans `cargo` / display. Le testeur doit faire `cargo build` ou `cargo tauri dev`.
 - **Desync toggle** : si l'utilisateur clique Start/Stop depuis le futur tray (TICKET-06) ET presse le hotkey, l'AtomicBool peut se désynchroniser du vrai état audio Python. Acceptable en v0.1 (scénario rare). Correction propre : répondre à `{"status":"done"}` depuis Python pour reset le toggle.
 
-## 🧪 Test — <date>
+## 🧪 Test — 2026-06-26
 **Couvert :**
+- Structure : `hotkey.rs` présent, `global-hotkey = "0.6"` et `toml = "0.8"` dans `Cargo.toml` (3 tests)
+- Mappings `hotkey.rs` : 4 modificateurs + 2 alias (META/WIN, CONTROL), 6 touches spéciales, F1-F12 (12), A-Z (26), 0-9 (10) — 18 tests
+- Logique `parse_hotkey()` : parité Python/Rust sur 10 cas (hotkey par défaut SUPER+grave, CTRL+SHIFT+SPACE, alias META/WIN/CONTROL, F12, chiffre, touche seule, erreurs no-key et unknown-key)
+- `lib.rs` : RecordingState, HotkeyManagerState, AtomicBool, reload_hotkey, mod hotkey, spawn_listener, fetch_xor, dégradation gracieuse sans panic (8 tests)
+- Suite complète : 109/109 verts — zéro régression TICKET-01 à 05
+- Fichier de tests : `tests/test_hotkey_static.py` — 36/36 verts
+
 **NON couvert (assumé) :**
+- **Compilation Rust** : `cargo build`/`cargo check` non disponible dans l'env de test. À valider sur poste développeur.
+- **Toggle fonctionnel Linux** (case DoD) : nécessite display X11/XWayland + `GlobalHotKeyManager::new()` réussi.
+- **Toggle fonctionnel Windows** (case DoD) : nécessite Windows.
+- `HotKey: Copy` hypothesis : `register()` utilise `hotkey` deux fois après move — compile seulement si `HotKey` implémente `Copy` (attendu pour `global-hotkey 0.6`, à vérifier à la compilation).
+
 **Sécurité vérifiée :**
+- `parse_hotkey()` ne fait aucun `exec`/`eval`, parse uniquement des chaînes de touches — pas d'injection.
+- `read_config_hotkey()` lit uniquement `~/.config/whisper-type/config.toml` (contrôle utilisateur local), fallback safe.
+- `send_cmd()` dans `spawn_listener()` envoie uniquement `"start"` ou `"stop"` hardcodés — pas de contenu utilisateur dans le canal IPC.
+
 **Bugs trouvés :**
+- **Bug latent non bloquant** : `lib.rs` — si `HotkeyManager::new()` échoue (Wayland natif sans XWayland), `HotkeyManagerState` n'est pas ajouté au managed state. Un appel à `reload_hotkey` depuis le frontend (TICKET-08) déclencherait un panic Tauri (`State<HotkeyManagerState>` non gérée). À corriger avant TICKET-08 : gérer le cas Err en managant quand même un état "désactivé" ou en retournant une erreur propre.
+- **Desync toggle documenté** (connu, admis) : si start/stop UI (TICKET-06) et hotkey sont utilisés en alternance, l'`AtomicBool` peut diverger de l'état audio Python. Non bloquant v0.1.
+- Score refactor : **3/10** — code Rust propre, logique claire. Seul le bug `HotkeyManagerState` non géré mérite attention avant TICKET-08.
 
 ## ♻️ Refactor — <date>
 **Changé :**
