@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-08
 title: Settings panel (modèle, hotkey, langue)
-status: coded
+status: tested
 branch: feat/ticket-08
 updated: 2026-06-27
 ---
@@ -61,11 +61,39 @@ Une fenêtre settings minimaliste et moderne (ouverte via le tray). L'utilisateu
 - **Test `save_settings` avec modèle invalid** : "large-v2" → doit retourner erreur (pas dans whitelist).
 - **Compilation Rust** : `serde::Deserialize` sur `Settings` requiert `serde` avec feature `derive` — déjà présent dans `Cargo.toml`.
 
-## 🧪 Test — <date>
+## 🧪 Test — 2026-06-27
 **Couvert :**
+- `config.rs` structure : `Config` struct, `defaults()`, `config_path()`, `read()`, `write()` (6 tests)
+- `config.rs` valeurs par défaut : model="small", language="fr", hotkey="SUPER+grave", HOME/USERPROFILE (5 tests)
+- Format TOML `config::write()` : parité Python, round-trip tomllib valide, medium/auto (4 tests)
+- Validation whitelist `lib.rs` : VALID_MODELS (tiny→large), VALID_LANGUAGES (12 entrées dont `auto`, `de`, `es`, `it`, `pt`), large-v2 rejeté (6 tests)
+- Logique validation miroir Python : tous les modèles et langues valides acceptés, invalides (xlarge, jp, large-v2) rejetés avec message "invalide" (7 tests)
+- `lib.rs` settings : `mod config`, `get_settings`, `save_settings`, `restart_sidecar`, `spawn_stdout_reader`, `Mutex<Option<HotkeyManager>>` (fix TICKET-05 vérifié), `Mutex::new(None)` sur Wayland, `serde::Deserialize` (10 tests)
+- `index.html` : option `large`, 4 nouvelles langues (de/es/it/pt), `auto` présent, 4 modèles originaux (7 tests)
+- `main.js` : `__TAURI__.core.invoke` (namespace Tauri v2), `get_settings`/`save_settings`, payload `{settings: {...}}`, `saveBtn.disabled`, finally, feedbacks "Enregistrement..."/"Sauvegardé ✓"/"Erreur", `setTimeout`, guards modificateurs hotkey (CTRL/SHIFT/ALT), fallback SUPER+grave (14 tests)
+- Fichier : `tests/test_settings.py` — **59/59 verts**
+- Suite complète : **258/258 verts** (199 existants + 59 nouveaux — zéro régression TICKET-01→07)
+
 **NON couvert (assumé) :**
+- **Runtime Tauri** : `window.__TAURI__.core.invoke` vérifié comme string dans le JS — l'existence réelle de ce namespace à l'exécution nécessite `cargo tauri dev`. Alternative `core` vs `tauri` vs `primitives` à confirmer en live.
+- **`restart_sidecar` en cours d'enregistrement** : documenté dans la section Code (audio perdu, non-bloquant). Non testé (nécessite sidecar réel).
+- **Rechargement hotkey à chaud** : `mgr.register(&hotkey_str)` — testé statiquement, comportement X11 réel non testé.
+- **`config::write` écrase les commentaires** : comportement attendu, acceptable v0.1, documenté Code.
+- **Concurrence** : deux saves simultanés → `Mutex` protège `HotkeyManagerState`, pas de double-write lock sur `config::write`. Non testé (edge case).
+
 **Sécurité vérifiée :**
+- **Whitelist exhaustive** : `VALID_MODELS` et `VALID_LANGUAGES` rejettent silencieusement les valeurs inconnues (`large-v2`, `jp`, etc.) — protège contre corruption de config et injection de valeurs arbitraires vers Python.
+- **`parse_hotkey` comme validation** : un hotkey malformé (ex. `SUPER+`) retourne `Err` → save échoue proprement, pas de TOML corrompu.
+- **Injection TOML** : `config::write` formate via `format!()` avec interpolation directe. Les valeurs passent par la whitelist d'abord — pas de caractère spécial TOML possible (langues 2 lettres, modèles alphanumériques, hotkeys validés par parse_hotkey).
+- **`statusEl.textContent`** : erreur Tauri affichée via `.textContent`, pas `.innerHTML` → pas d'injection XSS.
+- **Pas de secrets** : config.toml ne contient que model/language/hotkey, aucun token ou credential.
+
 **Bugs trouvés :**
+- **Bug infra pré-existant (TICKET-01→07)** : `tests/conftest.py` absent → pytest 9.x ne résolvait pas `import config` / `import whisper_type` depuis tests/. Symptôme invisible si `sys.path` incluait déjà le root (sessions précédentes). **Corrigé** : `tests/conftest.py` créé (`sys.path.insert(0, root)`).
+- **Test TICKET-03 obsolète** : `test_js_todo_ticket_08` cherchait `"TICKET-08"` dans `main.js` comme placeholder TODO. TICKET-08 a remplacé les TODOs par l'implémentation réelle. **Mis à jour** → `test_js_ticket_08_implemented` vérifie `save_settings` et `get_settings` dans le JS.
+- Aucun bug fonctionnel dans TICKET-08.
+
+**Audit refactor : 2/10** — code propre, séparation claire (config.rs / lib.rs / main.js). `restart_sidecar` est un peu verbeux mais correctement isolé. Passer directement à Validation.
 
 ## ♻️ Refactor — <date>
 **Changé :**
