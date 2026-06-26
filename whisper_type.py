@@ -19,6 +19,7 @@ import wave
 import logging
 from pathlib import Path
 
+import json
 import config as cfg
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -27,6 +28,7 @@ log = logging.getLogger(__name__)
 import tempfile as _tempfile
 PID_FILE = Path(_tempfile.gettempdir()) / "whisper-type.pid"
 IS_WINDOWS = sys.platform == "win32"
+SIDECAR_MODE = "--sidecar" in sys.argv
 _config = cfg.load()
 MODEL_SIZE = _config["model"]
 LANGUAGE = _config["language"]
@@ -37,6 +39,11 @@ _audio_frames = []
 _lock = threading.Lock()
 _model = None
 _stream = None
+
+
+def _sidecar_respond(data: dict) -> None:
+    """Envoie une réponse JSON sur stdout (canal IPC vers Rust)."""
+    print(json.dumps(data), flush=True)
 
 
 def notify(title, msg="", icon="dialog-information"):
@@ -134,10 +141,14 @@ def stop_and_transcribe():
 
     if not text:
         notify("whisper-type", "Rien détecté", "dialog-warning")
+        if SIDECAR_MODE:
+            _sidecar_respond({"status": "done", "text": ""})
         return
 
     type_text(text)
     notify("whisper-type", f"{text[:60]}{'...' if len(text) > 60 else ''}", "emblem-default")
+    if SIDECAR_MODE:
+        _sidecar_respond({"status": "done", "text": text})
 
 
 def type_text(text):
@@ -212,9 +223,46 @@ def _hotkey_to_keyboard_lib(hotkey: str) -> str:
     return "+".join(mapping.get(p, p.lower()) for p in hotkey.split("+"))
 
 
+def sidecar_loop() -> None:
+    """Mode IPC : lit les commandes JSON depuis stdin, répond sur stdout.
+    Appelé quand le process est lancé avec --sidecar par Rust/Tauri.
+    """
+    log.info("Mode sidecar (IPC stdin/stdout)")
+    threading.Thread(target=load_model, daemon=True).start()
+
+    for raw in sys.stdin:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            msg = json.loads(raw)
+        except json.JSONDecodeError:
+            _sidecar_respond({"error": "invalid JSON"})
+            continue
+
+        cmd = msg.get("cmd")
+        if cmd == "start":
+            threading.Thread(target=start_recording, daemon=True).start()
+            _sidecar_respond({"status": "recording"})
+        elif cmd == "stop":
+            notify("Transcription...", "", "hourglass")
+            _sidecar_respond({"status": "transcribing"})
+            threading.Thread(target=stop_and_transcribe, daemon=True).start()
+        elif cmd == "ping":
+            _sidecar_respond({"status": "ok"})
+        else:
+            _sidecar_respond({"error": f"unknown command: {cmd!r}"})
+
+    log.info("stdin fermé — sidecar terminé.")
+
+
 def main():
     PID_FILE.write_text(str(os.getpid()))
     log.info(f"Daemon démarré (PID {os.getpid()})")
+
+    if SIDECAR_MODE:
+        sidecar_loop()
+        return
 
     threading.Thread(target=load_model, daemon=True).start()
 

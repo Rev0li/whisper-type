@@ -57,6 +57,30 @@ Hotkey press ──▶ Rust backend ──▶ Python sidecar (start/stop record)
 3. **Changement de settings**
    `User modifie settings UI` → IPC Tauri → Rust met à jour `config.toml` → relance le sidecar Python avec nouveau modèle si besoin
 
+## Protocole IPC JSON (stdin/stdout) — implémenté en TICKET-04
+
+Communication entre Rust et le sidecar Python via des lignes JSON (une par ligne).
+
+**Rust → Python (stdin) :**
+```json
+{"cmd": "start"}    // démarre l'enregistrement
+{"cmd": "stop"}     // stoppe et transcrit
+{"cmd": "ping"}     // health check
+```
+
+**Python → Rust (stdout) :**
+```json
+{"status": "recording"}                       // enregistrement démarré
+{"status": "transcribing"}                    // transcription en cours
+{"status": "done", "text": "texte transcrit"} // terminé (text peut être "")
+{"error": "message d'erreur"}                 // en cas de problème
+{"status": "ok"}                              // réponse au ping
+```
+
+En mode sidecar, Python tape toujours le texte directement (wtype/SendInput) ET renvoie le texte à Rust. La responsabilité du typing migrera vers Rust dans une version future.
+
+Le sidecar est lancé avec `python whisper_type.py --sidecar`. Sans ce flag, le comportement daemon SIGUSR1 est conservé (mode standalone).
+
 ## Données & secrets
 - **Config** : `~/.config/whisper-type/config.toml` (hotkey, modèle, langue)
 - **Cache modèles** : `~/.cache/whisper-type/<model_size>/`
