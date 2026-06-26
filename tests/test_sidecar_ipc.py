@@ -25,15 +25,27 @@ def _load_wt(monkeypatch):
 
 
 def _run_sidecar(wt, monkeypatch, lines, capsys):
-    """Lance sidecar_loop() avec stdin simulé, retourne les dicts JSON reçus sur stdout."""
+    """Lance sidecar_loop() avec stdin simulé, retourne les dicts JSON reçus sur stdout.
+
+    Les messages proactifs de démarrage (model_cached/model_missing, ajoutés en TICKET-09)
+    sont filtrés pour que les tests TICKET-04 restent valides.
+    """
     monkeypatch.setattr(sys, "stdin", io.StringIO("\n".join(lines) + "\n"))
     monkeypatch.setattr(wt, "load_model", lambda: None)
     monkeypatch.setattr(wt, "start_recording", lambda: None)
     monkeypatch.setattr(wt, "stop_and_transcribe", lambda: None)
     monkeypatch.setattr(wt, "notify", lambda *a, **kw: None)
+    # TICKET-09 : model_in_cache mocké à True pour éviter que le check proactif
+    # émette model_missing (qui nécessiterait un mock HF_HUB et fausserait les comptages).
+    monkeypatch.setattr(wt, "model_in_cache", lambda s: True)
     wt.sidecar_loop()
     out = capsys.readouterr().out
-    return [json.loads(ln) for ln in out.splitlines() if ln.strip()]
+    startup_statuses = {"model_cached", "model_missing"}
+    return [
+        d for ln in out.splitlines() if ln.strip()
+        for d in [json.loads(ln)]
+        if d.get("status") not in startup_statuses
+    ]
 
 
 class TestSidecarRespond:
