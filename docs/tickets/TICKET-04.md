@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-04
 title: Intégration Python sidecar (IPC stdin/stdout)
-status: coded
+status: tested
 branch: feat/ticket-04
 updated: 2026-06-26
 ---
@@ -52,11 +52,35 @@ Le backend Rust démarre `whisper_type.py` comme sidecar (subprocess) et communi
 - **À tester** : que le mode SIGUSR1 standalone ne régresse pas (lancer sans `--sidecar`, envoyer SIGUSR1).
 - **Non testé ici** : le côté Rust (compilation Tauri requise, déférée au testeur).
 
-## 🧪 Test — <date>
+## 🧪 Test — 2026-06-26
 **Couvert :**
+- `_sidecar_respond()` : JSON valide sur stdout, une ligne par appel (3 tests)
+- `sidecar_loop()` — protocole complet :
+  - `ping` → `{"status":"ok"}` (2 tests dont multi-ping)
+  - JSON invalide → `{"error":"invalid JSON"}` (1 test)
+  - Commande inconnue → `{"error":"unknown command:..."}` (1 test)
+  - Lignes vides ignorées (1 test)
+  - Clé `cmd` absente ou `null` → erreur (2 tests)
+  - `start` → `{"status":"recording"}` + thread `start_recording` appelé (2 tests)
+  - `stop` → `{"status":"transcribing"}` envoyé **avant** le thread `stop_and_transcribe` (2 tests — ordre garanti)
+- `SIDECAR_MODE` : False sans flag, True avec `--sidecar`, False avec autre arg (3 tests)
+- Non-régression suite complète : 73/73 verts (TICKET-01 à 04)
+- Fichier de tests : `tests/test_sidecar_ipc.py` — 17/17 verts
+
 **NON couvert (assumé) :**
+- `start` audio réel → `stop` → `{"status":"done","text":"..."}` : nécessite micro.
+- Mode SIGUSR1 standalone (non-régression réelle) : nécessite un process daemon vivant avec signal.
+- Côté Rust (`sidecar.rs`, `lib.rs`) : cargo non disponible, non compilable ici.
+- `stop_and_transcribe()` en sidecar mode avec `SIDECAR_MODE=True` + audio mockée : non couvert (complexité audio), déféré.
+
 **Sécurité vérifiée :**
+- `sidecar_loop()` ne fait `eval()` ni `exec()` — parse JSON uniquement. Aucune injection possible depuis stdin.
+- `_sidecar_respond()` utilise `json.dumps()` — pas de fuite de données non sérialisées.
+- Commandes inconnues retournent une erreur sans exposer de détail interne sur le système.
+
 **Bugs trouvés :**
+- Aucun. `sidecar.rs:25` confirmé : `send_cmd` envoie `{"cmd":"start"}\n` (JSON valide) — protocole Python/Rust cohérent.
+- Score refactor : **2/10** — code propre, protocole clair. Passer directement à Validation.
 
 ## ♻️ Refactor — <date>
 **Changé :**
