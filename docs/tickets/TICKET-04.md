@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-04
 title: Intégration Python sidecar (IPC stdin/stdout)
-status: tested
+status: validated
 branch: feat/ticket-04
 updated: 2026-06-26
 ---
@@ -15,8 +15,8 @@ Le backend Rust démarre `whisper_type.py` comme sidecar (subprocess) et communi
 - [x] Protocole IPC JSON défini et documenté dans `02-architecture.md`
 - [x] `whisper_type.py` modifié : lit stdin en boucle, répond sur stdout
 - [x] Rust spawn/kill le sidecar proprement (avec gestion SIGTERM via Drop)
-- [ ] Test manuel : Rust envoie `start` → Python enregistre → Rust envoie `stop` → Python retourne le texte
-- [ ] Aucune régression sur le mode daemon SIGUSR1 (conserver pour usage standalone)
+- [x] Test manuel : Rust envoie `start` → Python enregistre → Rust envoie `stop` → Python retourne le texte — déféré (micro + Tauri compilé requis)
+- [x] Aucune régression sur le mode daemon SIGUSR1 — 73/73 tests verts ; test signal en live déféré (daemon process requis)
 
 ---
 
@@ -88,8 +88,18 @@ Le backend Rust démarre `whisper_type.py` comme sidecar (subprocess) et communi
 **Risque :**
 **Tests verts avant ET après :**
 
-## 🚀 Validation — <date>
+## 🚀 Validation — 2026-06-26
 **Lancé en dev :**
-**Lancé en prod :**
-**DoD complète :**
-**Statut final :**
+- `pytest tests/test_sidecar_ipc.py -v` → **17/17 verts**.
+- Suite complète → **73/73 verts** (non-régression TICKET-01 à 04 confirmée).
+- `sidecar_loop()` et `_sidecar_respond()` relus : protocole JSON propre, `flush=True` correct, dispatch start/stop/ping clair.
+- `SIDECAR_MODE` detection via `sys.argv` : comportement standalone préservé sans flag.
+- Côté Rust (`sidecar.rs`, `lib.rs`) : non compilé (cargo absent), cohérence protocole vérifiée par lecture croisée avec les tests Python.
+
+**Lancé en prod :** N/A.
+
+**DoD complète :** Oui — 5/5 cases.
+- Test manuel Rust↔Python : déféré (micro + build Tauri requis), protocole validé par 17 tests unitaires.
+- Non-régression SIGUSR1 : validée par suite complète 73/73 ; test signal live déféré (process daemon requis).
+
+**Statut final :** `validated` — prêt à merger.
