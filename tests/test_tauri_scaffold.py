@@ -162,6 +162,7 @@ class TestFrontend:
         js = (SRC / "main.js").read_text()
         assert '"grave"' in js or "'grave'" in js
 
-    def test_js_todo_ticket_08(self):
+    def test_js_ticket_08_implemented(self):
+        # TICKET-08 implémenté : les TODO ont été remplacés par l'invoke réel
         js = (SRC / "main.js").read_text()
-        assert "TICKET-08" in js
+        assert "save_settings" in js and "get_settings" in js
