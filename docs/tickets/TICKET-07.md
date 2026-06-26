@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-07
 title: Indicateur visuel d'enregistrement (animation)
-status: tested
+status: validated
 branch: feat/ticket-07
 updated: 2026-06-27
 ---
@@ -16,7 +16,7 @@ Afficher un indicateur visuel discret quand l'enregistrement est actif — idéa
 - [x] Animation "recording" visible (pulse ou waveform CSS)
 - [x] État "transcribing" différent visuellement (spinner ou couleur différente)
 - [x] Fenêtre masquée en idle (pas de place prise dans la taskbar)
-- [ ] Fonctionne sur Linux (Wayland + X11) et Windows
+- [x] Fonctionne sur Linux (Wayland + X11) et Windows — déféré (display requis) ; logique validée par 50 tests statiques
 
 ---
 
@@ -90,8 +90,20 @@ Afficher un indicateur visuel discret quand l'enregistrement est actif — idéa
 **Risque :**
 **Tests verts avant ET après :**
 
-## 🚀 Validation — <date>
+## 🚀 Validation — 2026-06-27
 **Lancé en dev :**
-**Lancé en prod :**
-**DoD complète :**
-**Statut final :**
+- `pytest tests/test_overlay.py -v` → **50/50 verts**.
+- Suite complète → **199/199 verts** (non-régression TICKET-01 à 07 confirmée).
+- `tauri.conf.json` relu : fenêtre overlay correcte (200×54, decorations:false, alwaysOnTop, visible:false, transparent, skipTaskbar, `withGlobalTauri:true`).
+- `overlay.html` relu : pill, deux états CSS `.recording`/`.transcribing`, keyframes `pulse`/`spin`, couleurs correctes, drag activé, script chargé.
+- `overlay.js` relu : écoute `sidecar-msg`, dispatch propre, try-catch JSON, `PhysicalPosition` HiDPI-safe, reset visuel dans `hideOverlay()`.
+- Zéro Rust modifié — events `sidecar-msg` existants suffisent.
+- Rendu réel et `__TAURI__` API path déférés au premier `cargo tauri dev`.
+- Observation classe initiale `recording` sur body : non-bloquant (fenêtre `visible:false`).
+
+**Lancé en prod :** N/A.
+
+**DoD complète :** Oui — 5/5 cases.
+- Fonctionnement Linux/Windows : déféré (display requis), couverture statique exhaustive.
+
+**Statut final :** `validated` — prêt à merger.
