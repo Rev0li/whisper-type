@@ -15,6 +15,25 @@ Runs 100% offline using [faster-whisper](https://github.com/SYSTRAN/faster-whisp
 - Python 3.10+
 - `wtype` (auto-installed)
 
+### Dev prerequisites (frontend / Tauri)
+
+To work on the Tauri frontend (`src-tauri/`):
+
+- [Rust](https://rustup.rs/) 1.70+ (`rustup` recommended)
+- Node.js 18+ + npm
+- Tauri v2 system deps: `webkit2gtk4.1-devel`, `openssl-devel`, `libappindicator-gtk3-devel` (Fedora)
+
+```bash
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Install frontend deps
+npm install
+
+# Launch dev build (requires Wayland/X11 display)
+npm run dev
+```
+
 ### Install
 
 ```bash
