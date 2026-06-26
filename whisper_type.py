@@ -166,7 +166,7 @@ def toggle_handler(signum, frame):
 
 
 def cleanup(signum=None, frame=None):
-    global _recording, _stream
+    global _recording
     _recording = False
     if _stream:
         try:
