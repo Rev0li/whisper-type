@@ -44,6 +44,12 @@ pub fn spawn_listener(
                     // fetch_xor(true) flips le bit et retourne l'ancienne valeur.
                     let was_recording = recording.fetch_xor(true, Ordering::SeqCst);
                     let cmd = if was_recording { "stop" } else { "start" };
+                    // Mise à jour optimiste du tray (avant confirmation du sidecar).
+                    if was_recording {
+                        crate::tray::set_transcribing(&app_handle);
+                    } else {
+                        crate::tray::set_recording(&app_handle);
+                    }
                     let state = app_handle.state::<crate::SidecarState>();
                     if let Some(sc) = state.0.lock().unwrap().as_mut() {
                         if let Err(e) = sc.send_cmd(cmd) {
