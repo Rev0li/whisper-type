@@ -151,22 +151,6 @@ fn str_to_code(s: &str) -> Option<Code> {
     }
 }
 
-/// Lit `~/.config/whisper-type/config.toml` et retourne la valeur de `hotkey`.
 pub fn read_config_hotkey() -> String {
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| ".".into());
-
-    let path = std::path::Path::new(&home).join(".config/whisper-type/config.toml");
-
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|content| {
-            content
-                .parse::<toml::Table>()
-                .ok()?
-                .get("hotkey")
-                .and_then(|v| v.as_str().map(str::to_string))
-        })
-        .unwrap_or_else(|| "SUPER+grave".into())
+    crate::config::read().hotkey
 }
