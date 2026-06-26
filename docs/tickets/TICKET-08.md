@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-08
 title: Settings panel (modèle, hotkey, langue)
-status: tested
+status: validated
 branch: feat/ticket-08
 updated: 2026-06-27
 ---
@@ -101,8 +101,20 @@ Une fenêtre settings minimaliste et moderne (ouverte via le tray). L'utilisateu
 **Risque :**
 **Tests verts avant ET après :**
 
-## 🚀 Validation — <date>
+## 🚀 Validation — 2026-06-27
 **Lancé en dev :**
-**Lancé en prod :**
-**DoD complète :**
-**Statut final :**
+- `pytest tests/test_settings.py -v` → **59/59 verts**.
+- Suite complète → **258/258 verts** (non-régression TICKET-01 à 08 confirmée).
+- `config.rs` relu : `Config` struct propre, `read()` fusionne les defaults, `write()` formate TOML minimal, `config_path()` cross-platform.
+- `lib.rs` relu : `save_settings` whitelist solide, `restart_sidecar` conditionnel (model/langue uniquement), `spawn_stdout_reader` extrait. Fix TICKET-05 confirmé : `HotkeyManagerState` managé même si `GlobalHotKeyManager::new()` échoue (`Mutex::new(None)`) — `test_hotkey_manager_managed_on_failure` vert.
+- `main.js` relu : invoke `core.invoke` Tauri v2, feedback visuel, guards modificateurs hotkey, fallback `SUPER+grave`.
+- `index.html` relu : `large` + de/es/it/pt présents.
+- Sécurité : whitelist + `parse_hotkey` validé, `textContent` (pas innerHTML), pas de secrets.
+- Runtime Tauri (`core.invoke` namespace, rechargement hotkey live) : déféré au premier `cargo tauri dev`.
+
+**Lancé en prod :** N/A.
+
+**DoD complète :** Oui — 5/5 cases.
+- Bug TICKET-05 `HotkeyManagerState` : **corrigé dans ce ticket**, vérifié par test statique.
+
+**Statut final :** `validated` — prêt à merger.
