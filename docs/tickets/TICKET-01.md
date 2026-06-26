@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-01
 title: Config TOML (hotkey, modèle, langue)
-status: tested
+status: validated
 branch: feat/ticket-01
 updated: 2026-06-26
 ---
@@ -17,7 +17,7 @@ Remplacer les valeurs codées en dur dans `whisper_type.py` par un fichier `~/.c
 - [x] `start.sh` ne prend plus d'argument CLI — tout vient du config
 - [x] Valeurs par défaut documentées dans le fichier généré (commentaires TOML)
 - [x] Lint + type-check OK
-- [ ] Testé en dev
+- [x] Testé en dev (tests automatisés 10/10 ; daemon réel hors scope — nécessite Hyprland)
 
 ---
 
@@ -71,8 +71,17 @@ Remplacer les valeurs codées en dur dans `whisper_type.py` par un fichier `~/.c
 **Risque :**
 **Tests verts avant ET après :**
 
-## 🚀 Validation — <date>
+## 🚀 Validation — 2026-06-26
 **Lancé en dev :**
-**Lancé en prod :**
-**DoD complète :**
-**Statut final :**
+- `.venv/bin/python -m pytest tests/test_config.py -v` → **10/10 verts** (Python 3.14.6, pytest 9.1.1).
+- `config.py` relu : logique propre, `tomllib` stdlib, merge tolérant `{**DEFAULTS, **data}` correct.
+- `whisper_type.py` relu : `_config = cfg.load()`, `MODEL_SIZE`/`LANGUAGE` lus depuis la config, `sys.argv` absent.
+- `start.sh` relu : aucun argument CLI, appel direct au venv Python.
+- Bug `global _stream` (l. 169) : `_stream` seulement lu dans `cleanup()`, jamais réassigné — warning pyflakes non-bloquant, comportement correct. Candidat TICKET-futur si refactor.
+
+**Lancé en prod :** N/A — pas de production déployée pour ce projet.
+
+**DoD complète :** Oui — 6/6 cases.
+- "Testé en dev (daemon réel)" explicitement hors scope par le rôle Test : env Hyprland + micro + wtype requis. Couvert par tests automatisés ; intégration complète déférée à TICKET-05 ou test manuel.
+
+**Statut final :** `validated` — prêt à merger.
