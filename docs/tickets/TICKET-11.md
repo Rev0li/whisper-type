@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-11
 title: Build Linux (AppImage) via GitHub Actions
-status: coded
+status: tested
 branch: feat/ticket-11
 updated: 2026-06-27
 ---
@@ -55,11 +55,35 @@ updated: 2026-06-27
 - **AppImage portabilité glibc** : l'AppImage buildée sur `ubuntu-latest` (Ubuntu 24.04, glibc 2.39) ne tournera pas sur des distros avec une glibc plus ancienne (ex. Ubuntu 20.04, glibc 2.31). Pour maximiser la compat, il faudrait builder sur une image ancienne (ex. `ubuntu-20.04`). Non critique pour v0.1.
 - **`--exclude-module keyboard` sur Linux** : `keyboard` est une dépendance dans `requirements.txt`. Sur Linux, `keyboard` nécessite root. L'exclure évite d'embarquer ses hooks kernel. À vérifier que PyInstaller ne lève pas d'erreur lors de l'analyse de l'import conditionnel dans `main()`.
 
-## 🧪 Test — <date>
+## 🧪 Test — 2026-06-27
 **Couvert :**
+- Job `build-linux` : présent dans YAML, runner `ubuntu-latest`, `permissions: contents: write`, coexistence avec `build-windows` (4 tests)
+- `apt-get install` : `apt-get update`, 9 paquets (libwebkit2gtk-4.1-dev, build-essential, libssl-dev, libgtk-3-dev, libayatana-appindicator3-dev, librsvg2-dev, portaudio19-dev, libasound2-dev, patchelf) (10 tests)
+- PyInstaller Linux : `--onefile`, `--collect-all` ×3, `--exclude-module keyboard`, `--name whisper_type`, syntaxe bash `\` (pas PowerShell `` ` ``), requirements.txt (8 tests)
+- Staging sidecar : `cp` (pas `Copy-Item`), sans `.exe`, triple `x86_64-unknown-linux-gnu`, `mkdir -p`, path `src-tauri/binaries` (5 tests)
+- Rust Linux : target `x86_64-unknown-linux-gnu`, rust-toolchain@stable, rust-cache@v2, `npm run build` (4 tests)
+- Artifacts : `.AppImage` (path `bundle/appimage`), `.deb` (path `bundle/deb`), `generate_release_notes: false`, action-gh-release@v2 (6 tests)
+- Cohérence Windows↔Linux : Python 3.11, Node 20, `--onefile`, `npm run build` identiques ; `generate_release_notes: true` vs `false` ; runners différents ; targets différents ; formats artifacts différents (8 tests)
+- `resolve_sidecar()` Rust : `cfg!(windows)` conditionne `.exe`, Linux cherche `"whisper_type"` (sans extension), Windows cherche `"whisper_type.exe"` (3 tests)
+- README : `AppImage` dans tableau Download, lien GitHub releases Linux, note `XWayland`, mention Wayland, `DISPLAY` env var, `.deb` uploadé dans workflow (6 tests)
+- Fichier : `tests/test_linux_build.py` — **54/54 verts**
+- Suite complète : **466/466 verts** — zéro régression TICKET-01→10
+
 **NON couvert (assumé) :**
+- **Exécution réelle** : `apt-get install` + PyInstaller + `npm run build` → AppImage nécessitent GitHub Actions. Non testable localement.
+- **Race condition double release** : `build-windows` et `build-linux` peuvent créer la release en parallèle (422 possible). Non ajouté `needs: build-windows` — documenté dans Code comme acceptable v0.1.
+- **glibc compatibility** : AppImage buildée sur Ubuntu 24.04 (glibc 2.39) ne tourne pas sur des distros avec glibc plus ancienne. Documenté dans Code, non testable statiquement.
+- **CTranslate2 `.so` système** : libgomp/openblas peuvent manquer dans l'AppImage. Vérifiable seulement au runtime.
+- **AppImage Fedora 44** : DoD non coché — déféré au premier run réel.
+
 **Sécurité vérifiée :**
+- Identique à TICKET-10 : `GITHUB_TOKEN` scope minimal, `softprops/action-gh-release@v2` non épinglé par SHA (acceptable v0.1), PyInstaller `--exclude-module keyboard` évite les hooks kernel root.
+- **`sudo apt-get install`** : commandes via `run:` GitHub Actions sur runner isolé. Pas d'injection possible (les noms de paquets sont hardcodés dans le YAML).
+
 **Bugs trouvés :**
+- Aucun bug fonctionnel.
+- **Observation** : `.deb` uploadé dans la release mais absent du tableau README (seul l'AppImage est listé). Comportement attendu — le `.deb` est un bonus sans documentation supplémentaire. Non bloquant.
+- **Audit refactor : 1/10** — YAML propre, miroir quasi-parfait de `build-windows`. Passer directement à Validation.
 
 ## ♻️ Refactor — <date>
 **Changé :**
