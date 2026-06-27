@@ -3,11 +3,21 @@ use global_hotkey::{
     GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState,
 };
 use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc};
+use tauri::Manager;
 
 pub struct HotkeyManager {
     inner: GlobalHotKeyManager,
     current: Option<HotKey>,
 }
+
+// SAFETY: On Windows, GlobalHotKeyManager wraps a Win32 HWND managed
+// by the crate's internal message pump thread. Register/unregister calls
+// are serialised by the Mutex in HotkeyManagerState, so cross-thread
+// access is safe in practice.
+#[cfg(windows)]
+unsafe impl Send for HotkeyManager {}
+#[cfg(windows)]
+unsafe impl Sync for HotkeyManager {}
 
 impl HotkeyManager {
     pub fn new() -> Result<Self, String> {
