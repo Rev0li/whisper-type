@@ -6,6 +6,17 @@ Runs 100% offline using [faster-whisper](https://github.com/SYSTRAN/faster-whisp
 
 ---
 
+## Download
+
+| Platform | Installer |
+|---|---|
+| **Windows 10/11** | [Latest release](https://github.com/Rev0li/whisper-type/releases/latest) → `whisper-type_x.x.x_x64-setup.exe` |
+
+No Python or Rust installation required — everything is bundled.
+The first launch downloads the Whisper model (~461 MB for `small`).
+
+---
+
 ## Current state — Linux / Hyprland (daemon mode)
 
 ### Requirements
