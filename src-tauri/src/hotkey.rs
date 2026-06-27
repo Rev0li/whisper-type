@@ -61,7 +61,8 @@ pub fn spawn_listener(
                         crate::tray::set_recording(&app_handle);
                     }
                     let state = app_handle.state::<crate::SidecarState>();
-                    if let Some(sc) = state.0.lock().unwrap().as_mut() {
+                    let mut guard = state.0.lock().unwrap();
+                    if let Some(sc) = guard.as_mut() {
                         if let Err(e) = sc.send_cmd(cmd) {
                             log::error!("hotkey → sidecar '{cmd}' failed: {e}");
                         }
