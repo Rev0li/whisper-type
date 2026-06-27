@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-10
 title: Build Windows (.exe) via GitHub Actions
-status: tested
+status: validated
 branch: feat/ticket-10
 updated: 2026-06-27
 ---
@@ -113,8 +113,21 @@ Mettre en place un workflow GitHub Actions qui produit un installeur Windows `.e
 **Risque :**
 **Tests verts avant ET après :**
 
-## 🚀 Validation — <date>
+## 🚀 Validation — 2026-06-27
 **Lancé en dev :**
-**Lancé en prod :**
-**DoD complète :**
-**Statut final :**
+- `pytest tests/test_release_build.py -v` → **69/69 verts**.
+- Suite complète → **412/412 verts** (non-régression TICKET-01 à 10 confirmée).
+- `release.yml` relu : triggers tag/dispatch, runner `windows-latest`, Python 3.11 + PyInstaller flags corrects (`--onefile`, `--collect-all` ×3, `--exclude-module keyboard`), Rust stable + cible x86_64-pc-windows-msvc, `npm run build`, upload via `softprops/action-gh-release@v2` avec `generate_release_notes`.
+- `sidecar.rs` relu : `Option<&str>` dans `spawn`, `--sidecar` toujours présent, `Drop` intact.
+- `lib.rs` relu : `resolve_sidecar()` 3 niveaux clairs, `as_deref()` correct, appelée aux deux spawn.
+- `tauri.conf.json` relu : `externalBin: ["binaries/whisper_type"]` correct.
+- `binaries/` : dossier présent, `.gitignore` exclut les binaires compilés, aucun binaire commité.
+- Exécution CI réelle : non testable localement — à valider lors du premier tag `v0.1.0`.
+- Observation sécurité : `softprops/action-gh-release@v2` non épinglé par SHA — non bloquant v0.1.
+
+**Lancé en prod :** N/A — workflow déclenché par tag, pas encore de release poussée.
+
+**DoD complète :** Oui — 5/5 cases.
+- Build CI réel : déféré au premier tag `v0.1.0`.
+
+**Statut final :** `validated` — prêt à merger.
