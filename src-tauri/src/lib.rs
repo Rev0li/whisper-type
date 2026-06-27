@@ -139,13 +139,11 @@ pub fn run() {
                 )?;
             }
 
-            let python = std::env::var("WHISPER_PYTHON")
-                .unwrap_or_else(|_| ".venv/bin/python3".into());
-
             let recording = Arc::new(AtomicBool::new(false));
             app.manage(RecordingState(Arc::clone(&recording)));
 
-            match sidecar::Sidecar::spawn(&python, "whisper_type.py") {
+            let (program, script) = resolve_sidecar();
+            match sidecar::Sidecar::spawn(&program, script.as_deref()) {
                 Ok(mut sc) => {
                     spawn_stdout_reader(app.handle().clone(), &mut sc);
                     app.manage(SidecarState(Mutex::new(Some(sc))));
@@ -192,6 +190,27 @@ pub fn run() {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
+
+/// Résout (programme, Option<script>) pour spawner le sidecar.
+///
+/// Ordre de résolution :
+/// 1. `WHISPER_PYTHON` défini → dev (python + whisper_type.py)
+/// 2. Binaire PyInstaller trouvé à côté de l'exe courant → prod bundlé
+/// 3. Fallback → `.venv/bin/python3 whisper_type.py` (dev Linux)
+fn resolve_sidecar() -> (String, Option<String>) {
+    if let Ok(python) = std::env::var("WHISPER_PYTHON") {
+        return (python, Some("whisper_type.py".into()));
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let bundled = dir.join(if cfg!(windows) { "whisper_type.exe" } else { "whisper_type" });
+            if bundled.exists() {
+                return (bundled.to_string_lossy().into_owned(), None);
+            }
+        }
+    }
+    (".venv/bin/python3".into(), Some("whisper_type.py".into()))
+}
 
 /// Attache le thread lecteur stdout au sidecar. À appeler juste après spawn.
 fn spawn_stdout_reader(handle: tauri::AppHandle, sc: &mut sidecar::Sidecar) {
@@ -254,10 +273,8 @@ fn restart_sidecar(
         *guard = None;
     }
 
-    let python = std::env::var("WHISPER_PYTHON")
-        .unwrap_or_else(|_| ".venv/bin/python3".into());
-
-    let mut sc = sidecar::Sidecar::spawn(&python, "whisper_type.py")
+    let (program, script) = resolve_sidecar();
+    let mut sc = sidecar::Sidecar::spawn(&program, script.as_deref())
         .map_err(|e| format!("Sidecar restart failed: {e}"))?;
 
     spawn_stdout_reader(app.clone(), &mut sc);

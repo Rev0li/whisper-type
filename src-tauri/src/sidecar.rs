@@ -6,11 +6,16 @@ pub struct Sidecar {
 }
 
 impl Sidecar {
-    /// Spawne `python <script> --sidecar`. stdin/stdout sont des pipes.
-    /// stderr est hérité (les logs Python restent visibles dans le terminal).
-    pub fn spawn(python: &str, script: &str) -> Result<Self, String> {
-        let child = Command::new(python)
-            .args([script, "--sidecar"])
+    /// Spawne le sidecar.
+    /// - `script = Some("whisper_type.py")` → `program script --sidecar` (dev : Python + script)
+    /// - `script = None` → `program --sidecar` (prod : binaire PyInstaller autonome)
+    pub fn spawn(program: &str, script: Option<&str>) -> Result<Self, String> {
+        let mut cmd = Command::new(program);
+        if let Some(s) = script {
+            cmd.arg(s);
+        }
+        let child = cmd
+            .arg("--sidecar")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
