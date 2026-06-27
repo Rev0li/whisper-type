@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "dev.rev0li.whisper-type",
   "build": {
-    "frontendDist": "../src",
-    "withGlobalTauri": true
+    "frontendDist": "../src"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",

@@ -34,7 +34,7 @@ class TestStructure:
         assert JS.is_file()
 
     def test_with_global_tauri_enabled(self):
-        assert _conf()["build"].get("withGlobalTauri") is True
+        assert _conf()["app"].get("withGlobalTauri") is True
 
 
 class TestOverlayWindow:
