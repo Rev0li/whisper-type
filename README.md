@@ -11,9 +11,12 @@ Runs 100% offline using [faster-whisper](https://github.com/SYSTRAN/faster-whisp
 | Platform | Installer |
 |---|---|
 | **Windows 10/11** | [Latest release](https://github.com/Rev0li/whisper-type/releases/latest) → `whisper-type_x.x.x_x64-setup.exe` |
+| **Linux (AppImage)** | [Latest release](https://github.com/Rev0li/whisper-type/releases/latest) → `whisper-type_x.x.x_amd64.AppImage` |
 
 No Python or Rust installation required — everything is bundled.
 The first launch downloads the Whisper model (~461 MB for `small`).
+
+**Linux note:** The AppImage requires a display server (X11 or XWayland). For global hotkeys on Wayland (Hyprland, Sway), XWayland must be running (`DISPLAY` env var set).
 
 ---
 
