@@ -2,7 +2,7 @@ use std::sync::{atomic::Ordering, Mutex};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIcon, TrayIconBuilder},
-    AppHandle, Manager, Wry,
+    Manager, Runtime, Wry,
 };
 
 pub struct TrayState {
@@ -10,18 +10,16 @@ pub struct TrayState {
     toggle_item: MenuItem<Wry>,
 }
 
-// TICKET-07 ajoutera des icônes colorées (recording=rouge, transcribing=jaune).
-// Actuellement le même icon est utilisé pour les 3 états ; seul le tooltip change.
-const ICON: &[u8] = include_bytes!("../icons/32x32.png");
-
 pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     let toggle_item = MenuItem::with_id(app, "toggle", "Start Recording", true, None::<&str>)?;
     let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&toggle_item, &settings_item, &quit_item])?;
 
-    let icon = tauri::image::Image::from_bytes(ICON)
-        .expect("icons/32x32.png must be a valid PNG");
+    let icon = app
+        .default_window_icon()
+        .cloned()
+        .expect("app must have an icon configured in tauri.conf.json");
 
     let tray = TrayIconBuilder::new()
         .icon(icon)
@@ -57,31 +55,27 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
-fn handle_toggle(app: &AppHandle) {
-    let was_recording = app
-        .state::<crate::RecordingState>()
-        .0
-        .fetch_xor(true, Ordering::SeqCst);
+fn handle_toggle<R: Runtime>(app: &tauri::AppHandle<R>) {
+    let was_recording = match app.try_state::<crate::RecordingState>() {
+        Some(s) => s.0.fetch_xor(true, Ordering::SeqCst),
+        None => return,
+    };
     if was_recording {
         set_transcribing(app);
     } else {
         set_recording(app);
     }
     let cmd = if was_recording { "stop" } else { "start" };
-    if let Some(sc) = app
-        .state::<crate::SidecarState>()
-        .0
-        .lock()
-        .unwrap()
-        .as_mut()
-    {
-        if let Err(e) = sc.send_cmd(cmd) {
-            log::error!("tray toggle → sidecar '{cmd}' failed: {e}");
+    if let Some(sc_state) = app.try_state::<crate::SidecarState>() {
+        if let Some(sc) = sc_state.0.lock().unwrap().as_mut() {
+            if let Err(e) = sc.send_cmd(cmd) {
+                log::error!("tray toggle → sidecar '{cmd}' failed: {e}");
+            }
         }
     }
 }
 
-pub fn set_idle(app: &AppHandle) {
+pub fn set_idle<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(ts) = app.try_state::<Mutex<TrayState>>() {
         let ts = ts.lock().unwrap();
         let _ = ts.toggle_item.set_text("Start Recording");
@@ -89,7 +83,7 @@ pub fn set_idle(app: &AppHandle) {
     }
 }
 
-pub fn set_recording(app: &AppHandle) {
+pub fn set_recording<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(ts) = app.try_state::<Mutex<TrayState>>() {
         let ts = ts.lock().unwrap();
         let _ = ts.toggle_item.set_text("Stop Recording");
@@ -97,7 +91,7 @@ pub fn set_recording(app: &AppHandle) {
     }
 }
 
-pub fn set_transcribing(app: &AppHandle) {
+pub fn set_transcribing<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(ts) = app.try_state::<Mutex<TrayState>>() {
         let ts = ts.lock().unwrap();
         let _ = ts.toggle_item.set_text("Transcribing...");
