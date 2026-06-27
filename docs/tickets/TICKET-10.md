@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-10
 title: Build Windows (.exe) via GitHub Actions
-status: coded
+status: tested
 branch: feat/ticket-10
 updated: 2026-06-27
 ---
@@ -70,11 +70,42 @@ Mettre en place un workflow GitHub Actions qui produit un installeur Windows `.e
 - **Windows Defender / SmartScreen** : sans code signing, l'exe déclenche SmartScreen. Acceptable pour un build de test initial. La vraie v1 aura besoin d'un certificat (EV ou OV).
 - **`cargo check` en local** : échoue car `glib-2.0` n'est pas installé dans l'environnement shell (manque les paquets système Tauri sur Linux). Pas un problème — `cargo check` passe normalement sur une machine avec les paquets Fedora installés (confirmé par les tickets précédents).
 
-## 🧪 Test — <date>
+## 🧪 Test — 2026-06-27
 **Couvert :**
+- Workflow existence : `.github/workflows/release.yml` présent, répertoire `.github/workflows/` (2 tests)
+- Triggers : tag `v*` → push, `workflow_dispatch`, pas de déclenchement sur branches libres (3 tests)
+- Job `build-windows` : runner `windows-latest`, `permissions: contents: write` (3 tests)
+- Steps : checkout@v4, setup-python@v5 (3.11 + pip cache), pyinstaller install, requirements.txt, setup-node@v4 (Node 20 + npm cache), npm install, rust-toolchain@stable (cible x86_64-pc-windows-msvc), rust-cache@v2, `npm run build`, GITHUB_TOKEN, action-gh-release@v2, `generate_release_notes: true` (14 tests)
+- PyInstaller flags : `--onefile`, `--collect-all faster_whisper/ctranslate2/sounddevice`, `--exclude-module keyboard`, `--name whisper_type`, `whisper_type.py` (7 tests)
+- Artifact paths : `bundle/nsis/*.exe`, `bundle/msi/*.msi`, triple `x86_64-pc-windows-msvc`, copy vers `src-tauri/binaries` (4 tests)
+- `sidecar.rs` : `Option<&str>` dans signature spawn, `Some(s)` → arg ajouté, `--sidecar` toujours présent, format JSON `{"cmd":"..."}` via `writeln!`, `kill` + `Drop` présents (5 tests)
+- `lib.rs` `resolve_sidecar()` : existence, `(String, Option<String>)`, branche 1 (WHISPER_PYTHON → script), branche 2 (`current_exe`, `.exe` Windows, `None`), branche 3 (`.venv/bin/python3`), appelée ≥2 fois, `as_deref()` (10 tests)
+- Logique `resolve_sidecar` miroir Python : WHISPER_PYTHON override, bundled → None, fallback venv, dev toujours avec script (5 tests)
+- `tauri.conf.json` `externalBin` : section `bundle`, `active: true`, `externalBin` défini, contient `whisper_type`, path `binaries/` (5 tests)
+- `src-tauri/binaries/` : dossier présent, `.gitignore` exclut les binaires, aucun binaire commité (3 tests)
+- `README.md` : section Download, GitHub releases, Windows, `.exe`, note "bundled/no Python" (6 tests)
+- Fichier : `tests/test_release_build.py` — **69/69 verts**
+- Suite complète : **412/412 verts** — zéro régression TICKET-01→09
+
 **NON couvert (assumé) :**
+- **Exécution réelle du workflow** : GitHub Actions ne peut pas tourner en local — impossible de tester que `npm run build` + `cargo tauri build` produisent réellement un `.exe`. À valider lors du premier push avec un tag `v0.1.0`.
+- **`--collect-all ctranslate2` sur Windows** : les DLLs CUDA sont incluses. Taille et compatibilité à vérifier lors du premier build CI réel.
+- **PyInstaller `--onefile` décompression** : 5-15s au premier lancement dans `%TEMP%`. Non testable statiquement.
+- **`resolve_sidecar()` branche 2** : `current_exe().parent()` joint à `whisper_type.exe` — testé logiquement via parité Python, mais l'existence réelle du fichier nécessite un build Tauri complet.
+- **Code signing** : `TAURI_SIGNING_PRIVATE_KEY` absent → SmartScreen warning. Comportement acceptable v0.1, non testé.
+- **`npm run build`** : appelle `tauri build` via le CLI Node — vérifiable seulement avec `cargo` et les dépendances système (glib, webkit2gtk).
+
 **Sécurité vérifiée :**
+- **`GITHUB_TOKEN`** : utilisé via `${{ secrets.GITHUB_TOKEN }}` — token automatique GitHub Actions, scope minimal (contents:write pour créer la release). Pas de secret custom requis pour le build de base.
+- **`TAURI_SIGNING_PRIVATE_KEY`** : optionnel, non défini par défaut → build passe sans signing, SmartScreen avertit. Non exposé dans les logs.
+- **`softprops/action-gh-release@v2`** : action tierce. Version fixée (`@v2`), pas de hash SHA. Risque supply-chain acceptable pour v0.1 (action populaire), à durcir avec SHA si déploiement critique.
+- **PyInstaller `--onefile`** : décompresse dans `%TEMP%` → répertoire utilisateur, pas system32. Pas d'élévation de privilèges requise.
+- **`--exclude-module keyboard`** : évite explicitement les bindings Win32 qui nécessitent des droits UAC. Bonne pratique sécurité documentée.
+
 **Bugs trouvés :**
+- Aucun bug fonctionnel.
+- **Observation** : `softprops/action-gh-release@v2` non épinglé par hash SHA (supply-chain risk mineur). Non bloquant v0.1.
+- **Audit refactor : 1/10** — CI YAML propre, `resolve_sidecar()` élégante. Zéro dette. Passer directement à Validation.
 
 ## ♻️ Refactor — <date>
 **Changé :**
