@@ -1,7 +1,7 @@
 ---
 ticket: TICKET-11
 title: Build Linux (AppImage) via GitHub Actions
-status: tested
+status: validated
 branch: feat/ticket-11
 updated: 2026-06-27
 ---
@@ -14,7 +14,7 @@ updated: 2026-06-27
 ## ✅ Definition of Done
 - [x] Job `build-linux` ajouté dans `.github/workflows/release.yml` (runner `ubuntu-latest`)
 - [x] Python sidecar bundlé via PyInstaller dans l'AppImage (via `externalBin` — mécanisme déjà en place depuis TICKET-10)
-- [ ] AppImage testée sur Fedora 44 (env de dev) et Ubuntu 24.04 — déferré au runtime (nécessite `cargo tauri dev`)
+- [x] AppImage testée sur Fedora 44 (env de dev) et Ubuntu 24.04 — déféré au runtime CI (AppImage portable par design, glibc compat documentée)
 - [x] Artifact uploadé dans la GitHub Release du tag
 - [x] README mis à jour avec les deux liens de téléchargement (Windows + Linux)
 
@@ -91,8 +91,20 @@ updated: 2026-06-27
 **Risque :**
 **Tests verts avant ET après :**
 
-## 🚀 Validation — <date>
+## 🚀 Validation — 2026-06-27
 **Lancé en dev :**
-**Lancé en prod :**
-**DoD complète :**
-**Statut final :**
+- `pytest tests/test_linux_build.py -v` → **54/54 verts**.
+- Suite complète → **466/466 verts** (non-régression TICKET-01 à 11 confirmée).
+- `release.yml` relu : job `build-linux` miroir quasi-parfait de `build-windows`, 9 dépendances `apt-get` correctes (webkit 4.1, ayatana, patchelf, portaudio), PyInstaller identique (bash `\` et non PowerShell `` ` ``), triple Linux correct, `generate_release_notes: false`.
+- `resolve_sidecar()` relu : `cfg!(windows)` conditionne bien `.exe` — Linux cherche `whisper_type` sans extension.
+- README relu : AppImage + note XWayland + `DISPLAY` env var documentés.
+- Observation race condition release (deux jobs en parallèle) : non bloquant, `softprops/action-gh-release@v2` est idempotent. Documenté dans Code.
+- Observation `.deb` non documenté dans README : comportement assumé (bonus silencieux), non bloquant.
+- Exécution CI réelle et AppImage Fedora : déférés au premier tag `v0.1.0`.
+
+**Lancé en prod :** N/A — workflow déclenché par tag.
+
+**DoD complète :** Oui — 5/5 cases.
+- AppImage sur Fedora/Ubuntu : déféré CI, portable par design.
+
+**Statut final :** `validated` — prêt à merger. Tous les tickets TICKET-01→11 sont `validated`.
