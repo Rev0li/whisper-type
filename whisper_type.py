@@ -44,6 +44,7 @@ _recording = False
 _audio_frames = []
 _lock = threading.Lock()
 _model = None
+_model_ready = threading.Event()
 _stream = None
 
 
@@ -66,6 +67,7 @@ def load_model():
     from faster_whisper import WhisperModel
     # device="auto" utilise CUDA si dispo, sinon CPU
     _model = WhisperModel(MODEL_SIZE, device="cpu", compute_type="int8")
+    _model_ready.set()
     log.info("Modèle chargé.")
     notify("whisper-type", "Prêt — raccourci actif", "audio-input-microphone")
 
@@ -115,6 +117,13 @@ def stop_and_transcribe():
 
     if not _audio_frames:
         log.warning("Aucun audio enregistré.")
+        return
+
+    if _model is None:
+        log.error("Modèle non encore chargé — transcription annulée")
+        notify("whisper-type", "Modèle en cours de chargement, réessayez dans quelques secondes", "dialog-warning")
+        if SIDECAR_MODE:
+            _sidecar_respond({"status": "error", "error": "model_not_ready"})
         return
 
     log.info("Transcription en cours...")
@@ -318,8 +327,11 @@ def sidecar_loop() -> None:
 
         cmd = msg.get("cmd")
         if cmd == "start":
-            threading.Thread(target=start_recording, daemon=True).start()
-            _sidecar_respond({"status": "recording"})
+            if not _model_ready.is_set():
+                _sidecar_respond({"status": "model_loading"})
+            else:
+                threading.Thread(target=start_recording, daemon=True).start()
+                _sidecar_respond({"status": "recording"})
         elif cmd == "stop":
             notify("Transcription...", "", "hourglass")
             _sidecar_respond({"status": "transcribing"})

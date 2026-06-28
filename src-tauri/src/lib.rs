@@ -288,7 +288,7 @@ fn update_tray_from_sidecar(app: &tauri::AppHandle, line: &str) {
         match msg.get("status").and_then(|v| v.as_str()) {
             Some("recording") => tray::set_recording(app),
             Some("transcribing") => tray::set_transcribing(app),
-            Some("done") => {
+            Some("done") | Some("model_loading") | Some("error") => {
                 if let Some(rec) = app.try_state::<RecordingState>() {
                     rec.0.store(false, Ordering::SeqCst);
                 }
