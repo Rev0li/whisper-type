@@ -30,6 +30,7 @@ jobs:
       - name: Build Python sidecar with PyInstaller
         run: |
           pyinstaller --onefile `
+            --noconsole `
             --collect-all faster_whisper `
             --collect-all ctranslate2 `
             --collect-all sounddevice `

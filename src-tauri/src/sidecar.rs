@@ -18,7 +18,7 @@ impl Sidecar {
             .arg("--sidecar")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| format!("sidecar spawn failed: {e}"))?;
         Ok(Self { child })
@@ -30,10 +30,12 @@ impl Sidecar {
         writeln!(stdin, r#"{{"cmd":"{cmd}"}}"#).map_err(|e| e.to_string())
     }
 
-    /// Prend le handle stdout pour le lire dans un thread séparé.
-    /// Ne peut être appelé qu'une seule fois (Option → None après).
     pub fn take_stdout(&mut self) -> Option<BufReader<std::process::ChildStdout>> {
         self.child.stdout.take().map(BufReader::new)
+    }
+
+    pub fn take_stderr(&mut self) -> Option<BufReader<std::process::ChildStderr>> {
+        self.child.stderr.take().map(BufReader::new)
     }
 
     pub fn kill(&mut self) {

@@ -146,6 +146,7 @@ pub fn run() {
             match sidecar::Sidecar::spawn(&program, script.as_deref()) {
                 Ok(mut sc) => {
                     spawn_stdout_reader(app.handle().clone(), &mut sc);
+                    spawn_stderr_reader(app.handle().clone(), &mut sc);
                     app.manage(SidecarState(Mutex::new(Some(sc))));
                 }
                 Err(e) => {
@@ -210,6 +211,18 @@ fn resolve_sidecar() -> (String, Option<String>) {
         }
     }
     (".venv/bin/python3".into(), Some("whisper_type.py".into()))
+}
+
+fn spawn_stderr_reader(handle: tauri::AppHandle, sc: &mut sidecar::Sidecar) {
+    if let Some(reader) = sc.take_stderr() {
+        std::thread::spawn(move || {
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    let _ = handle.emit("sidecar-log", line);
+                }
+            }
+        });
+    }
 }
 
 /// Attache le thread lecteur stdout au sidecar. À appeler juste après spawn.
@@ -278,6 +291,7 @@ fn restart_sidecar(
         .map_err(|e| format!("Sidecar restart failed: {e}"))?;
 
     spawn_stdout_reader(app.clone(), &mut sc);
+    spawn_stderr_reader(app.clone(), &mut sc);
     *state.0.lock().unwrap() = Some(sc);
     Ok(())
 }

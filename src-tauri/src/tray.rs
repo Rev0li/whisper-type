@@ -13,8 +13,9 @@ pub struct TrayState {
 pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     let toggle_item = MenuItem::with_id(app, "toggle", "Start Recording", true, None::<&str>)?;
     let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+    let debug_item = MenuItem::with_id(app, "debug", "Debug Logs", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&toggle_item, &settings_item, &quit_item])?;
+    let menu = Menu::with_items(app, &[&toggle_item, &settings_item, &debug_item, &quit_item])?;
 
     let icon = app
         .default_window_icon()
@@ -30,6 +31,12 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
             "toggle" => handle_toggle(app),
             "settings" => {
                 if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                }
+            }
+            "debug" => {
+                if let Some(win) = app.get_webview_window("debug") {
                     let _ = win.show();
                     let _ = win.set_focus();
                 }

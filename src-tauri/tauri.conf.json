@@ -30,6 +30,16 @@
         "alwaysOnTop": true
       },
       {
+        "label": "debug",
+        "title": "whisper-type — Debug Logs",
+        "url": "debug.html",
+        "width": 700,
+        "height": 480,
+        "resizable": true,
+        "visible": false,
+        "center": true
+      },
+      {
         "label": "overlay",
         "title": "",
         "url": "overlay.html",
