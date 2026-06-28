@@ -75,21 +75,20 @@ jobs:
           Install-Module -Name SignPath -Force -Scope CurrentUser
           New-Item -ItemType Directory -Force -Path signed-installer
 
-          $files = @(
-            Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" -ErrorAction SilentlyContinue
-            Get-ChildItem "src-tauri/target/release/bundle/msi/*.msi" -ErrorAction SilentlyContinue
-          )
-
-          foreach ($file in $files) {
-            $output = "signed-installer/$($file.Name)"
+          # On signe uniquement le .exe NSIS (PE format).
+          # Le .msi est au format COM — nécessite une artifact config séparée.
+          $exe = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($exe) {
             Submit-SigningRequest `
-              -InputArtifactPath $file.FullName `
+              -InputArtifactPath $exe.FullName `
               -ApiToken "${{ secrets.SIGNPATH_API_TOKEN }}" `
               -OrganizationId "${{ vars.SIGNPATH_ORG_ID }}" `
               -ProjectSlug "_whisper-type2" `
               -SigningPolicySlug "release-signing" `
-              -OutputArtifactPath $output `
+              -OutputArtifactPath "signed-installer/$($exe.Name)" `
               -WaitForCompletion
+          } else {
+            Write-Error "Aucun .exe NSIS trouvé dans le bundle Tauri"
           }
 
       - name: Upload to GitHub Release
