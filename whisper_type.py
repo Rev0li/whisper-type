@@ -174,14 +174,19 @@ def type_text(text):
 
 
 def _type_text_windows(text):
-    """Clipboard + Ctrl+V : gère tout Unicode, fiable dans toutes les apps Windows."""
+    """Clipboard + Ctrl+V via ctypes (aucune dépendance externe, pas d'UAC requis)."""
     try:
         import pyperclip
-        import keyboard as kb
+        import ctypes
         pyperclip.copy(text)
-        time.sleep(0.05)
-        kb.send("ctrl+v")
-        log.info("Texte tapé via clipboard+ctrl+v (Windows)")
+        time.sleep(0.1)
+        VK_CONTROL, VK_V, KEYEVENTF_KEYUP = 0x11, 0x56, 0x0002
+        ku = ctypes.windll.user32
+        ku.keybd_event(VK_CONTROL, 0, 0, 0)
+        ku.keybd_event(VK_V, 0, 0, 0)
+        ku.keybd_event(VK_V, 0, KEYEVENTF_KEYUP, 0)
+        ku.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+        log.info("Texte tapé via clipboard+ctrl+v (ctypes)")
     except Exception as e:
         log.error(f"Typing Windows échoué : {e}")
         notify("whisper-type", "Erreur typing — texte dans le clipboard (Ctrl+V)", "dialog-error")
