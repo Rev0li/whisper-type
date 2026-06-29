@@ -126,12 +126,11 @@ def stop_and_transcribe():
         log.warning("Aucun audio enregistré.")
         return
 
-    if _model is None:
-        log.error("Modèle non encore chargé — transcription annulée")
-        notify("whisper-type", "Modèle en cours de chargement, réessayez dans quelques secondes", "dialog-warning")
+    if not _model_ready.is_set():
+        log.info("Modèle en cours de chargement — attente...")
         if SIDECAR_MODE:
-            _sidecar_respond({"status": "error", "error": "model_not_ready"})
-        return
+            _sidecar_respond({"status": "transcribing"})
+        _model_ready.wait()  # attend indéfiniment, le modèle finira par être prêt
 
     log.info("Transcription en cours...")
     notify("Transcription...", "", "hourglass")
@@ -339,11 +338,10 @@ def sidecar_loop() -> None:
 
         cmd = msg.get("cmd")
         if cmd == "start":
-            if not _model_ready.is_set():
-                _sidecar_respond({"status": "model_loading"})
-            else:
-                threading.Thread(target=start_recording, daemon=True).start()
-                _sidecar_respond({"status": "recording"})
+            # On démarre toujours le micro, même si le modèle charge encore.
+            # La transcription attendra que le modèle soit prêt (voir stop_and_transcribe).
+            threading.Thread(target=start_recording, daemon=True).start()
+            _sidecar_respond({"status": "recording"})
         elif cmd == "stop":
             notify("Transcription...", "", "hourglass")
             _sidecar_respond({"status": "transcribing"})
