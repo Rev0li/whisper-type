@@ -3,7 +3,10 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": [
-    "main"
+    "main",
+    "debug",
+    "download",
+    "overlay"
   ],
   "permissions": [
     "core:default"

@@ -92,13 +92,20 @@ def start_recording():
         if _recording:
             _audio_frames.append(indata.copy())
 
-    _stream = sd.InputStream(
-        samplerate=SAMPLERATE,
-        channels=CHANNELS,
-        dtype="int16",
-        callback=callback,
-    )
-    _stream.start()
+    try:
+        _stream = sd.InputStream(
+            samplerate=SAMPLERATE,
+            channels=CHANNELS,
+            dtype="int16",
+            callback=callback,
+        )
+        _stream.start()
+    except Exception as e:
+        log.error(f"Microphone inaccessible : {e}")
+        with _lock:
+            _recording = False
+        if SIDECAR_MODE:
+            _sidecar_respond({"status": "error", "error": f"mic_unavailable: {e}"})
 
 
 def stop_and_transcribe():
