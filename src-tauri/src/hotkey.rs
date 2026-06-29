@@ -1,85 +1,7 @@
-use global_hotkey::{
-    hotkey::{Code, HotKey, Modifiers},
-    GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState,
-};
-use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc};
-use tauri::Manager;
+use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
 
-pub struct HotkeyManager {
-    inner: GlobalHotKeyManager,
-    current: Option<HotKey>,
-}
-
-// SAFETY: On Windows, GlobalHotKeyManager wraps a Win32 HWND managed
-// by the crate's internal message pump thread. Register/unregister calls
-// are serialised by the Mutex in HotkeyManagerState, so cross-thread
-// access is safe in practice.
-#[cfg(windows)]
-unsafe impl Send for HotkeyManager {}
-#[cfg(windows)]
-unsafe impl Sync for HotkeyManager {}
-
-impl HotkeyManager {
-    pub fn new() -> Result<Self, String> {
-        Ok(Self {
-            inner: GlobalHotKeyManager::new().map_err(|e| e.to_string())?,
-            current: None,
-        })
-    }
-
-    /// Désenregistre le hotkey précédent (si existant) et enregistre le nouveau.
-    pub fn register(&mut self, hotkey_str: &str) -> Result<(), String> {
-        if let Some(hk) = self.current.take() {
-            let _ = self.inner.unregister(hk);
-        }
-        let hotkey = parse_hotkey(hotkey_str)?;
-        self.inner
-            .register(hotkey)
-            .map_err(|e| e.to_string())?;
-        self.current = Some(hotkey);
-        Ok(())
-    }
-}
-
-/// Démarre un thread qui écoute les events globaux et envoie start/stop au sidecar.
-pub fn spawn_listener(
-    app_handle: tauri::AppHandle,
-    recording: Arc<AtomicBool>,
-) {
-    std::thread::spawn(move || {
-        let receiver = GlobalHotKeyEvent::receiver();
-        loop {
-            match receiver.recv() {
-                Ok(event) if event.state == HotKeyState::Pressed => {
-                    // fetch_xor(true) flips le bit et retourne l'ancienne valeur.
-                    let was_recording = recording.fetch_xor(true, Ordering::SeqCst);
-                    let cmd = if was_recording { "stop" } else { "start" };
-                    // Mise à jour optimiste du tray (avant confirmation du sidecar).
-                    if was_recording {
-                        crate::tray::set_transcribing(&app_handle);
-                    } else {
-                        crate::tray::set_recording(&app_handle);
-                    }
-                    let state = app_handle.state::<crate::SidecarState>();
-                    let mut guard = state.0.lock().unwrap();
-                    if let Some(sc) = guard.as_mut() {
-                        if let Err(e) = sc.send_cmd(cmd) {
-                            log::error!("hotkey → sidecar '{cmd}' failed: {e}");
-                        }
-                    }
-                }
-                Ok(_) => {}
-                Err(e) => {
-                    log::error!("hotkey receiver closed: {e}");
-                    break;
-                }
-            }
-        }
-    });
-}
-
-/// Parse le format config "SUPER+grave", "CTRL+SHIFT+S", etc. vers HotKey.
-pub fn parse_hotkey(s: &str) -> Result<HotKey, String> {
+/// Parse le format config "SUPER+grave", "CTRL+SHIFT+S", etc. vers Shortcut.
+pub fn parse_hotkey(s: &str) -> Result<Shortcut, String> {
     let mut modifiers = Modifiers::empty();
     let mut code: Option<Code> = None;
 
@@ -96,7 +18,7 @@ pub fn parse_hotkey(s: &str) -> Result<HotKey, String> {
     }
 
     let code = code.ok_or_else(|| "No key specified in hotkey".to_string())?;
-    Ok(HotKey::new(
+    Ok(Shortcut::new(
         if modifiers.is_empty() { None } else { Some(modifiers) },
         code,
     ))

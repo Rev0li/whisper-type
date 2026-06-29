@@ -4,6 +4,7 @@ use std::sync::{
     Arc, Mutex,
 };
 use tauri::{Emitter, Manager};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 mod config;
 mod hotkey;
@@ -12,8 +13,7 @@ pub mod tray;
 
 pub struct SidecarState(pub Mutex<Option<sidecar::Sidecar>>);
 pub struct RecordingState(pub Arc<AtomicBool>);
-/// None si GlobalHotKeyManager::new() a échoué (Wayland natif sans XWayland).
-pub struct HotkeyManagerState(pub Mutex<Option<hotkey::HotkeyManager>>);
+pub struct LogBuffer(pub Mutex<Vec<String>>);
 
 // ─── Commandes Tauri ───────────────────────────────────────────────────────
 
@@ -39,6 +39,12 @@ fn stop_recording(
     sidecar.0.lock().unwrap().as_mut().ok_or("sidecar not running")?.send_cmd("stop")
 }
 
+/// Retourne l'historique des logs (sidecar + Rust) pour le rejouer à l'ouverture de debug.
+#[tauri::command]
+fn get_logs(buf: tauri::State<LogBuffer>) -> Vec<String> {
+    buf.0.lock().unwrap().clone()
+}
+
 /// Relance le téléchargement du modèle (bouton "Réessayer" dans l'UI download).
 #[tauri::command]
 fn retry_download(state: tauri::State<SidecarState>) -> Result<(), String> {
@@ -47,16 +53,12 @@ fn retry_download(state: tauri::State<SidecarState>) -> Result<(), String> {
         .send_cmd("download_model")
 }
 
-/// Recharge le hotkey à chaud (TICKET-05). Appelé par save_settings si hotkey change.
+/// Recharge le hotkey à chaud. Appelé par save_settings si hotkey change.
 #[tauri::command]
-fn reload_hotkey(
-    hotkey_str: String,
-    hk_state: tauri::State<HotkeyManagerState>,
-) -> Result<(), String> {
-    match hk_state.0.lock().unwrap().as_mut() {
-        Some(mgr) => mgr.register(&hotkey_str),
-        None => Err("Hotkey non disponible (Wayland natif sans XWayland)".into()),
-    }
+fn reload_hotkey(hotkey_str: String, app: tauri::AppHandle) -> Result<(), String> {
+    let shortcut = hotkey::parse_hotkey(&hotkey_str)?;
+    app.global_shortcut().unregister_all().map_err(|e| e.to_string())?;
+    app.global_shortcut().register(shortcut).map_err(|e| e.to_string())
 }
 
 /// Retourne la configuration actuelle pour pré-remplir l'UI settings.
@@ -87,7 +89,6 @@ const VALID_LANGUAGES: &[&str] = &[
 fn save_settings(
     settings: Settings,
     app: tauri::AppHandle,
-    hk_state: tauri::State<HotkeyManagerState>,
     sidecar_st: tauri::State<SidecarState>,
     recording: tauri::State<RecordingState>,
 ) -> Result<(), String> {
@@ -98,25 +99,23 @@ fn save_settings(
     if !VALID_LANGUAGES.contains(&settings.language.as_str()) {
         return Err(format!("Langue invalide : {}", settings.language));
     }
-    hotkey::parse_hotkey(&settings.hotkey)
+    let shortcut = hotkey::parse_hotkey(&settings.hotkey)
         .map_err(|e| format!("Raccourci invalide : {e}"))?;
 
-    // Lire la config actuelle pour détecter les changements
     let current = config::read();
     let model_changed = current.model != settings.model;
     let lang_changed = current.language != settings.language;
 
-    // Écrire config.toml
     config::write(&settings.model, &settings.language, &settings.hotkey)?;
 
-    // Recharger le hotkey immédiatement (pas de redémarrage sidecar requis)
-    if let Some(mgr) = hk_state.0.lock().unwrap().as_mut() {
-        if let Err(e) = mgr.register(&settings.hotkey) {
-            log::warn!("Hotkey reload failed: {e}");
-        }
+    // Recharger le hotkey immédiatement
+    if let Err(e) = app.global_shortcut().unregister_all() {
+        log::warn!("Hotkey unregister_all failed: {e}");
+    }
+    if let Err(e) = app.global_shortcut().register(shortcut) {
+        log::warn!("Hotkey reload failed: {e}");
     }
 
-    // Redémarrer le sidecar seulement si modèle ou langue change
     if model_changed || lang_changed {
         log::info!("Modèle/langue changé — redémarrage sidecar");
         restart_sidecar(&app, &sidecar_st, &recording)?;
@@ -130,14 +129,44 @@ fn save_settings(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    let was_recording = match app.try_state::<RecordingState>() {
+                        Some(s) => s.0.fetch_xor(true, Ordering::SeqCst),
+                        None => return,
+                    };
+                    let cmd = if was_recording { "stop" } else { "start" };
+                    if was_recording {
+                        tray::set_transcribing(app);
+                    } else {
+                        tray::set_recording(app);
+                    }
+                    if let Some(sc_state) = app.try_state::<SidecarState>() {
+                        if let Some(sc) = sc_state.0.lock().unwrap().as_mut() {
+                            if let Err(e) = sc.send_cmd(cmd) {
+                                log::error!("hotkey → sidecar '{cmd}' failed: {e}");
+                            }
+                        }
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            app.handle().plugin(
+                tauri_plugin_log::Builder::default()
+                    .level(log::LevelFilter::Info)
+                    .targets([
+                        tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+                        tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stderr),
+                    ])
+                    .build(),
+            )?;
+
+            app.manage(LogBuffer(Mutex::new(Vec::with_capacity(2000))));
 
             let recording = Arc::new(AtomicBool::new(false));
             app.manage(RecordingState(Arc::clone(&recording)));
@@ -155,21 +184,16 @@ pub fn run() {
                 }
             }
 
-            match hotkey::HotkeyManager::new() {
-                Ok(mut mgr) => {
-                    let hotkey_str = hotkey::read_config_hotkey();
-                    if let Err(e) = mgr.register(&hotkey_str) {
-                        log::warn!("Hotkey '{hotkey_str}' non enregistré : {e}");
-                    } else {
-                        log::info!("Hotkey '{hotkey_str}' enregistré");
+            // Enregistrer le hotkey configuré
+            let hotkey_str = hotkey::read_config_hotkey();
+            match hotkey::parse_hotkey(&hotkey_str) {
+                Ok(shortcut) => {
+                    match app.global_shortcut().register(shortcut) {
+                        Ok(_) => log::info!("Hotkey '{hotkey_str}' enregistré"),
+                        Err(e) => log::warn!("Hotkey '{hotkey_str}' non enregistré : {e}"),
                     }
-                    app.manage(HotkeyManagerState(Mutex::new(Some(mgr))));
-                    hotkey::spawn_listener(app.handle().clone(), Arc::clone(&recording));
                 }
-                Err(e) => {
-                    log::warn!("GlobalHotKeyManager::new() échoué ({e}) — hotkey désactivé");
-                    app.manage(HotkeyManagerState(Mutex::new(None)));
-                }
+                Err(e) => log::warn!("Hotkey '{hotkey_str}' invalide : {e}"),
             }
 
             if let Err(e) = tray::setup(app) {
@@ -185,6 +209,7 @@ pub fn run() {
             get_settings,
             save_settings,
             retry_download,
+            get_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -192,12 +217,6 @@ pub fn run() {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-/// Résout (programme, Option<script>) pour spawner le sidecar.
-///
-/// Ordre de résolution :
-/// 1. `WHISPER_PYTHON` défini → dev (python + whisper_type.py)
-/// 2. Binaire PyInstaller trouvé à côté de l'exe courant → prod bundlé
-/// 3. Fallback → `.venv/bin/python3 whisper_type.py` (dev Linux)
 fn resolve_sidecar() -> (String, Option<String>) {
     if let Ok(python) = std::env::var("WHISPER_PYTHON") {
         return (python, Some("whisper_type.py".into()));
@@ -213,19 +232,28 @@ fn resolve_sidecar() -> (String, Option<String>) {
     (".venv/bin/python3".into(), Some("whisper_type.py".into()))
 }
 
+fn push_log(handle: &tauri::AppHandle, line: &str) {
+    if let Some(buf) = handle.try_state::<LogBuffer>() {
+        let mut v = buf.0.lock().unwrap();
+        if v.len() >= 2000 { v.remove(0); }
+        v.push(line.to_string());
+    }
+    let _ = handle.emit("debug-line", line);
+}
+
 fn spawn_stderr_reader(handle: tauri::AppHandle, sc: &mut sidecar::Sidecar) {
     if let Some(reader) = sc.take_stderr() {
         std::thread::spawn(move || {
             for line in reader.lines() {
                 if let Ok(line) = line {
-                    let _ = handle.emit("sidecar-log", line);
+                    let _ = handle.emit("sidecar-log", &line);
+                    push_log(&handle, &format!("[PY ERR] {line}"));
                 }
             }
         });
     }
 }
 
-/// Attache le thread lecteur stdout au sidecar. À appeler juste après spawn.
 fn spawn_stdout_reader(handle: tauri::AppHandle, sc: &mut sidecar::Sidecar) {
     if let Some(reader) = sc.take_stdout() {
         std::thread::spawn(move || {
@@ -233,6 +261,7 @@ fn spawn_stdout_reader(handle: tauri::AppHandle, sc: &mut sidecar::Sidecar) {
                 if let Ok(line) = line {
                     log::info!("sidecar → {line}");
                     let _ = handle.emit("sidecar-msg", line.clone());
+                    push_log(&handle, &format!("[PY] {line}"));
                     update_tray_from_sidecar(&handle, &line);
                     handle_download_events(&handle, &line);
                 }
@@ -241,7 +270,6 @@ fn spawn_stdout_reader(handle: tauri::AppHandle, sc: &mut sidecar::Sidecar) {
     }
 }
 
-/// Gère les events de téléchargement : ouvre/ferme la fenêtre download, lance le DL auto.
 fn handle_download_events(app: &tauri::AppHandle, line: &str) {
     if let Ok(msg) = serde_json::from_str::<serde_json::Value>(line) {
         match msg.get("status").and_then(|v| v.as_str()) {
@@ -250,7 +278,6 @@ fn handle_download_events(app: &tauri::AppHandle, line: &str) {
                     let _ = win.show();
                     let _ = win.set_focus();
                 }
-                // Lancer le téléchargement automatiquement dès détection
                 if let Some(state) = app.try_state::<SidecarState>() {
                     if let Ok(mut guard) = state.0.lock() {
                         if let Some(sc) = guard.as_mut() {
@@ -269,7 +296,6 @@ fn handle_download_events(app: &tauri::AppHandle, line: &str) {
     }
 }
 
-/// Tue le sidecar actuel et en démarre un nouveau (après changement modèle/langue).
 fn restart_sidecar(
     app: &tauri::AppHandle,
     state: &tauri::State<SidecarState>,
@@ -296,7 +322,6 @@ fn restart_sidecar(
     Ok(())
 }
 
-/// Parse une ligne JSON sidecar et met à jour le tray en conséquence.
 fn update_tray_from_sidecar(app: &tauri::AppHandle, line: &str) {
     if let Ok(msg) = serde_json::from_str::<serde_json::Value>(line) {
         match msg.get("status").and_then(|v| v.as_str()) {
