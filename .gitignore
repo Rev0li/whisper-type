@@ -1,11 +1,4 @@
-# Python
 .venv/
 __pycache__/
 *.log
 *.pyc
-
-# Rust / Tauri
-src-tauri/target/
-
-# Node
-node_modules/
